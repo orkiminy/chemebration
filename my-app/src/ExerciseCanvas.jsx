@@ -5,10 +5,11 @@ import { reactionLevels } from "./data/reactionLevels.js";
 import { checkIsomorphism } from "./chemistryUtils";
 
 // --- FIREBASE IMPORTS ---
-import { db, auth } from './firebase';
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { db } from './firebase';
+import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, increment } from "firebase/firestore";
+import { useAuth } from './contexts/AuthContext';
 
-export default function ExerciseCanvas() {
+export default function ExerciseCanvas({ exerciseType = "OneStepReaction" }) {
   /* ---------- CONSTANTS ---------- */
   const WIDTH = 480;
   const HEIGHT = 480;
@@ -19,7 +20,7 @@ export default function ExerciseCanvas() {
   /* ---------- STATE ---------- */
   const [levelIndex, setLevelIndex] = useState(() => Math.floor(Math.random() * reactionLevels.length));
   const [questionCount, setQuestionCount] = useState(1);
-  const [user, setUser] = useState(null);
+  const [questionStartTime, setQuestionStartTime] = useState(Date.now());
 
   const [atoms, setAtoms] = useState([]);
   const [bonds, setBonds] = useState([]);
@@ -30,6 +31,7 @@ export default function ExerciseCanvas() {
   const [bondStyle, setBondStyle] = useState("solid");
   const [feedback, setFeedback] = useState(null);
 
+  const { user } = useAuth();
   const currentLevel = reactionLevels[levelIndex];
 
   /* Clear feedback when user modifies canvas */
@@ -41,14 +43,10 @@ export default function ExerciseCanvas() {
   /* ---------- FIREBASE: PERSISTENCE LOGIC ---------- */
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        loadProgress(currentUser.uid);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
+    if (user) {
+      loadProgress(user.uid);
+    }
+  }, [user]);
 
   const loadProgress = async (uid) => {
     try {
@@ -62,17 +60,39 @@ export default function ExerciseCanvas() {
     }
   };
 
-  const saveProgress = async (newCount) => {
-    if (user) {
-      try {
-        const studentRef = doc(db, "students", user.uid);
-        await setDoc(studentRef, {
-          questionCount: newCount,
-          lastActive: new Date()
-        }, { merge: true });
-      } catch (error) {
-        console.error("Error saving progress:", error);
+  const saveProgress = async (newCount, isCorrect) => {
+    if (!user) return;
+    try {
+      const studentRef = doc(db, "students", user.uid);
+      const updateData = {
+        questionCount: newCount,
+        lastActive: new Date(),
+      };
+      if (isCorrect) {
+        updateData.correctCount = increment(1);
       }
+      await setDoc(studentRef, updateData, { merge: true });
+    } catch (error) {
+      console.error("Error saving progress:", error);
+    }
+  };
+
+  const saveAttempt = async (isCorrect) => {
+    if (!user) return;
+    try {
+      const timeTaken = Math.round((Date.now() - questionStartTime) / 1000);
+      const attemptsRef = collection(db, "students", user.uid, "attempts");
+      await addDoc(attemptsRef, {
+        levelId: currentLevel.id,
+        levelTitle: currentLevel.title,
+        levelIndex: levelIndex,
+        correct: isCorrect,
+        timestamp: serverTimestamp(),
+        timeTaken: timeTaken,
+        exerciseType: exerciseType,
+      });
+    } catch (error) {
+      console.error("Error saving attempt:", error);
     }
   };
 
@@ -198,7 +218,8 @@ export default function ExerciseCanvas() {
       setFeedback({ type: "success", message: "Correct! Next question..." });
 
       const nextCount = questionCount + 1;
-      saveProgress(nextCount);
+      saveAttempt(true);
+      saveProgress(nextCount, true);
 
       setTimeout(() => {
         const nextIndex = getRandomLevelIndex(levelIndex);
@@ -207,9 +228,11 @@ export default function ExerciseCanvas() {
         setAtoms([]);
         setBonds([]);
         setFeedback(null);
+        setQuestionStartTime(Date.now());
       }, 1500);
     } else {
       setFeedback({ type: "error", message: "Incorrect. Check regiochemistry and stereochemistry!" });
+      saveAttempt(false);
     }
   };
 
@@ -223,7 +246,6 @@ export default function ExerciseCanvas() {
       <div style={{ marginBottom: "1rem" }}>
         <h2 style={{ color: "#5f021f", margin: 0 }}>Question #{questionCount}: {currentLevel.title}</h2>
         <p style={{ color: "#666", margin: "4px 0 0" }}>{currentLevel.description}</p>
-        {!user && <p style={{ color: "#c0392b", margin: "4px 0 0", fontSize: "0.9rem" }}>Not logged in. Progress won't be saved.</p>}
       </div>
 
       {/* Feedback banner */}

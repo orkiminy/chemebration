@@ -1,39 +1,50 @@
 import React, { useState } from 'react';
-import { auth, db } from './firebase'; 
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { useNavigate, Navigate } from 'react-router-dom';
+import { auth, db } from './firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
+import { useAuth } from './contexts/AuthContext';
 
-export default function AuthPage({ onLoginSuccess }) {
-  const [isLogin, setIsLogin] = useState(true); // Toggle between Login and Signup
+export default function AuthPage() {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+
+  // Redirect if already logged in
+  if (!loading && user) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       if (isLogin) {
-        // Log In
         await signInWithEmailAndPassword(auth, email, password);
       } else {
-        // Sign Up
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        // Create the student profile
-        await setDoc(doc(db, "students", user.uid), {
+        const u = userCredential.user;
+        // Set display name so Header can show it
+        await updateProfile(u, { displayName: name });
+        // Create the student profile in Firestore
+        await setDoc(doc(db, "students", u.uid), {
           fullName: name,
           email: email,
-          questionCount: 1,
+          questionCount: 0,
+          correctCount: 0,
+          lastActive: new Date(),
         });
       }
-      onLoginSuccess(); // Tell the app to move to the game
+      navigate('/');
     } catch (error) {
       alert(error.message);
     }
   };
 
   const containerStyle = {
-    backgroundColor: "#f9e1e8", // Light pink from your screenshot
+    backgroundColor: "#f9e1e8",
     minHeight: "100vh",
     display: "flex",
     flexDirection: "column",
@@ -42,7 +53,7 @@ export default function AuthPage({ onLoginSuccess }) {
   };
 
   const headerStyle = {
-    backgroundColor: "#5f021f", // Maroon from your screenshot
+    backgroundColor: "#5f021f",
     color: "white",
     width: "100%",
     textAlign: "center",
@@ -78,34 +89,34 @@ export default function AuthPage({ onLoginSuccess }) {
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>CHEMEBRATION</div>
-      
+
       <form style={formStyle} onSubmit={handleSubmit}>
         <h2 style={{ color: "#5f021f", textAlign: "center", margin: 0 }}>
           {isLogin ? "Welcome Back" : "Join the Celebration"}
         </h2>
-        
+
         {!isLogin && (
-          <input 
-            type="text" placeholder="Full Name" required 
-            style={{ padding: "10px" }} onChange={(e) => setName(e.target.value)} 
+          <input
+            type="text" placeholder="Full Name" required
+            style={{ padding: "10px" }} onChange={(e) => setName(e.target.value)}
           />
         )}
-        
-        <input 
-          type="email" placeholder="Email Address" required 
-          style={{ padding: "10px" }} onChange={(e) => setEmail(e.target.value)} 
+
+        <input
+          type="email" placeholder="Email Address" required
+          style={{ padding: "10px" }} onChange={(e) => setEmail(e.target.value)}
         />
-        
-        <input 
-          type="password" placeholder="Password" required 
-          style={{ padding: "10px" }} onChange={(e) => setPassword(e.target.value)} 
+
+        <input
+          type="password" placeholder="Password" required
+          style={{ padding: "10px" }} onChange={(e) => setPassword(e.target.value)}
         />
-        
+
         <button type="submit" style={buttonStyle}>
           {isLogin ? "Log In" : "Create Account"}
         </button>
 
-        <p 
+        <p
           style={{ textAlign: "center", color: "#666", fontSize: "14px", cursor: "pointer" }}
           onClick={() => setIsLogin(!isLogin)}
         >

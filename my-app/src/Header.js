@@ -1,13 +1,22 @@
 import './App.css';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from './contexts/AuthContext';
 
 function Header() {
-        return (
-            <header className="header" id="header">
-              <link rel="stylesheet" href="https://unpkg.com/boxicons@2.0.7/css/boxicons.min.css" />
-              
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  return (
+    <header className="header" id="header">
+      <link rel="stylesheet" href="https://unpkg.com/boxicons@2.0.7/css/boxicons.min.css" />
+
       {/*<!-- Top Nav -->*/}
-     
+
       <div className="navigation">
         <div className="nav-center container d-flex">
 
@@ -15,34 +24,44 @@ function Header() {
             <li className="nav-item">
               <a href="#about" className="nav-link">About</a>
             </li>
-
-            
           </ul>
-          
+
           <h1>CHEMEBRATION</h1>
 
-          <li className="icons d-flex">
-            <div className="group-icon">
-               <div className="icon">
-                <i className="bx bxl-instagram"></i>
-              </div>
-
-              <div className="icon">
-                <i className="bx bxl-tiktok"></i>
-
-              </div>
-
-              <div className="icon">
-                <i className="bx bxl-facebook"></i>
-              </div>
-
+          {user ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'white', fontSize: '1.4rem', paddingRight: '1rem' }}>
+              <span>{user.displayName || user.email}</span>
+              <button
+                onClick={handleLogout}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid white',
+                  color: 'white',
+                  padding: '4px 12px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '1.3rem'
+                }}
+              >
+                Logout
+              </button>
             </div>
+          ) : (
+            <li className="icons d-flex">
+              <div className="group-icon">
+                <div className="icon">
+                  <i className="bx bxl-instagram"></i>
+                </div>
+                <div className="icon">
+                  <i className="bx bxl-tiktok"></i>
+                </div>
+                <div className="icon">
+                  <i className="bx bxl-facebook"></i>
+                </div>
+              </div>
+            </li>
+          )}
 
-          </li>
-
-            
-
-          
           <div className="hamburger">
             <i className="bx bx-menu-alt-left"></i>
           </div>
@@ -50,12 +69,11 @@ function Header() {
       </div>
 
       <div className="screenshot-container">
-          <img
-              src="/images/Screenshot 2026-01-13 at 3.35.26 PM.png"
-              alt="Screenshot of the app"
-          />
+        <img
+          src="/images/Screenshot 2026-01-13 at 3.35.26 PM.png"
+          alt="Screenshot of the app"
+        />
       </div>
-      
 
       <div className="subcategories">
         <ul>
@@ -91,15 +109,11 @@ function Header() {
             <Link to="/Mechanism">
               Mechanism
             </Link>
-
           </li>
         </ul>
       </div>
 
-
-
     </header>
-
-    ); 
+  );
 }
 export default Header;
