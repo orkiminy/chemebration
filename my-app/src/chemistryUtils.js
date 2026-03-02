@@ -57,20 +57,18 @@ export function checkIsomorphism(userAtoms, userBonds, solutionAtoms, solutionBo
     }
 
     // Iterate to blend neighbor info into the signature
-    for (let i = 0; i < 3; i++) {
+    const refine = (sigs) => {
       const nextSigs = new Map();
       for (const [id, node] of graph.entries()) {
-        
-        // collect neighbor signatures
         const neighborSigs = node.connections.map(conn => {
-          // KEY CHANGE: We now include the STYLE in the signature
-          // Format: "Order(Style)-NeighborSignature"
-          return `${conn.order}(${conn.style})-${currentSigs.get(conn.neighborId)}`; 
+          return `${conn.order}(${conn.style})-${sigs.get(conn.neighborId)}`;
         }).sort().join("|");
-
         nextSigs.set(id, `[${node.label}:${neighborSigs}]`);
       }
-      currentSigs = nextSigs;
+      return nextSigs;
+    };
+    for (let i = 0; i < 3; i++) {
+      currentSigs = refine(currentSigs);
     }
 
     return Array.from(currentSigs.values()).sort();

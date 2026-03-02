@@ -5,9 +5,9 @@ function Footer() {
                     <div className="row">
                         <div className="col d-flex">
                             <h4>INFORMATION</h4>
-                            <a href="">About Us</a>
-                            <a href="">Contact Us</a>
-                            <a href="">Terms & Conditions</a>
+                            <a href="#about">About Us</a>
+                            <a href="#contact">Contact Us</a>
+                            <a href="#terms">Terms & Conditions</a>
                             </div>
                             <div className="col d-flex">
                             <h4>USEFUL LINKS</h4>
