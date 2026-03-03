@@ -372,60 +372,7 @@ export const reactionLevels = [
     ]
   },
 
-  // --- 12. OZONOLYSIS ---
-  // Ring Opening. Methyl is now on a ketone carbonyl (sp2). Planar.
-  // Solid line is correct here because there is no stereocenter at C=O.
-  {
-    id: 12,
-    title: "Ozonolysis",
-    reagents: "1. O₃ / 2. DMS",
-    description: "Oxidative Cleavage (Ring opens to Keto-Aldehyde)",
-    question: {
-      atoms: [ { "id": 1, "x": 240, "y": 138.56, "label": "" }, 
-               { "id": 2, "x": 300, "y": 173.21, "label": "" }, 
-               { "id": 3, "x": 300, "y": 242.49, "label": "" }, 
-               { "id": 4, "x": 240, "y": 277.13, "label": "" }, 
-               { "id": 5, "x": 180, "y": 242.49, "label": "" }, 
-               { "id": 6, "x": 180, "y": 173.21, "label": "" }, 
-               { "id": 7, "x": 350, "y": 138.56, "label": "CH3" },
-               { "id": 8, "x": 350, "y": 277.13, "label": "H" }, 
-              ],
-      bonds: [ { "id": 101, "from": 1, "to": 2, "order": 1, "style": "solid" }, 
-               { "id": 102, "from": 2, "to": 3, "order": 2, "style": "solid" }, 
-               { "id": 103, "from": 3, "to": 4, "order": 1, "style": "solid" }, 
-               { "id": 104, "from": 4, "to": 5, "order": 1, "style": "solid" }, 
-               { "id": 105, "from": 5, "to": 6, "order": 1, "style": "solid" }, 
-               { "id": 106, "from": 6, "to": 1, "order": 1, "style": "solid" }, 
-               { "id": 107, "from": 7, "to": 2, "order": 1, "style": "solid" },
-               { "id": 108, "from": 8, "to": 3, "order": 1, "style": "solid" }, ]
-    },
-    solutions: [
-      {
-        atoms: [
-          { "id": 1, "x": 100, "y": 200, "label": "" },
-          { "id": 2, "x": 140, "y": 240, "label": "" },
-          { "id": 3, "x": 180, "y": 200, "label": "" },
-          { "id": 4, "x": 220, "y": 240, "label": "" },
-          { "id": 5, "x": 260, "y": 200, "label": "" },
-          { "id": 6, "x": 300, "y": 240, "label": "" }, 
-          { "id": 7, "x": 340, "y": 280, "label": "O" }, // Aldehyde O
-          { "id": 8, "x": 60, "y": 240, "label": "O" },  // Ketone O
-          { "id": 9, "x": 100, "y": 160, "label": "" },  // Methyl group
-        ],
-        bonds: [
-          { "id": 201, "from": 1, "to": 2, "order": 1, "style": "solid" },
-          { "id": 202, "from": 2, "to": 3, "order": 1, "style": "solid" },
-          { "id": 203, "from": 3, "to": 4, "order": 1, "style": "solid" },
-          { "id": 204, "from": 4, "to": 5, "order": 1, "style": "solid" },
-          { "id": 205, "from": 5, "to": 6, "order": 1, "style": "solid" },
-          { "id": 206, "from": 6, "to": 7, "order": 2, "style": "solid" }, 
-          { "id": 207, "from": 1, "to": 8, "order": 2, "style": "solid" }, 
-          { "id": 208, "from": 1, "to": 9, "order": 1, "style": "solid" }  // Solid is correct for Methyl on C=O
-        ]
-      }
-    ]
-  },
-
+ 
   // --- 13. DIHYDROXYLATION ---
   // Syn Addition. Methyl pushed opposite to OH.
   {
