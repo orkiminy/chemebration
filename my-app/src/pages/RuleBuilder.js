@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { extractDelta, saveRule, loadRules, deleteRule } from "../engine/reactionRules";
+import { extractRule, saveRule, loadRules, deleteRule } from "../engine/reactionRules";
 import "../App.css";
 
 const WIDTH = 400;
@@ -203,29 +203,35 @@ export default function RuleBuilder() {
   const addStep = () => setReagentSteps(steps => [...steps, ""]);
   const removeStep = (i) => setReagentSteps(steps => steps.length === 1 ? steps : steps.filter((_, j) => j !== i));
 
-  const [rules, setRules] = useState(() => loadRules());
+  const [rules, setRules] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadRules().then(r => { setRules(r); setLoading(false); });
+  }, []);
 
   const handleCopy = () => {
     setRightAtoms(leftAtoms.map(a => ({ ...a })));
     setRightBonds(leftBonds.map(b => ({ ...b })));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!reagent.trim()) { setSaveMsg("Enter a reagent first."); return; }
     if (leftAtoms.length === 0) { setSaveMsg("Draw the reactant on the left canvas first."); return; }
 
-    const delta = extractDelta(leftAtoms, leftBonds, rightAtoms, rightBonds);
-    if (!delta) { setSaveMsg("Could not extract rule — make sure the reactant has a double bond."); return; }
+    const snapshot = extractRule(leftAtoms, leftBonds, rightAtoms, rightBonds);
+    if (!snapshot) { setSaveMsg("Draw the reactant on the left canvas first."); return; }
 
     const rule = {
       reagent: reagent.trim(),
       name: ruleName.trim() || reagent.trim(),
       explanation: explanation.trim(),
-      ...delta,
+      ...snapshot,
     };
 
-    saveRule(rule);
-    const updated = loadRules();
+    setSaveMsg("Saving...");
+    await saveRule(rule);
+    const updated = await loadRules();
     setRules(updated);
     setSaveMsg(`Rule "${rule.name}" saved!`);
     setReagentSteps([""]);
@@ -233,9 +239,9 @@ export default function RuleBuilder() {
     setExplanation("");
   };
 
-  const handleDelete = (index) => {
-    deleteRule(index);
-    setRules(loadRules());
+  const handleDelete = async (ruleId) => {
+    await deleteRule(ruleId);
+    setRules(await loadRules());
   };
 
   return (
@@ -339,37 +345,31 @@ export default function RuleBuilder() {
         {/* Saved rules list */}
         <div style={{ marginTop: "2rem" }}>
           <h3 style={{ color: "#5f021f", marginBottom: "0.75rem" }}>
-            Saved Rules ({rules.length})
+            Saved Rules ({loading ? "…" : rules.length})
           </h3>
-          {rules.length === 0 ? (
+          {loading ? (
+            <p style={{ color: "#aaa" }}>Loading…</p>
+          ) : rules.length === 0 ? (
             <p style={{ color: "#aaa" }}>No rules saved yet.</p>
           ) : (
-            <table style={{ borderCollapse: "collapse", width: "100%", maxWidth: "700px" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", maxWidth: "600px" }}>
               <thead>
                 <tr style={{ background: "#f5f5f5" }}>
                   <th style={{ padding: "8px 12px", textAlign: "left", border: "1px solid #ddd" }}>Reagent</th>
                   <th style={{ padding: "8px 12px", textAlign: "left", border: "1px solid #ddd" }}>Name</th>
-                  <th style={{ padding: "8px 12px", textAlign: "left", border: "1px solid #ddd" }}>Type</th>
-                  <th style={{ padding: "8px 12px", textAlign: "left", border: "1px solid #ddd" }}>Adds at C2</th>
-                  <th style={{ padding: "8px 12px", textAlign: "left", border: "1px solid #ddd" }}>Adds at C3</th>
+                  <th style={{ padding: "8px 12px", textAlign: "left", border: "1px solid #ddd" }}>Explanation</th>
                   <th style={{ padding: "8px 12px", border: "1px solid #ddd" }}></th>
                 </tr>
               </thead>
               <tbody>
-                {rules.map((r, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
+                {rules.map((r) => (
+                  <tr key={r.id} style={{ borderBottom: "1px solid #eee" }}>
                     <td style={{ padding: "8px 12px", border: "1px solid #ddd", fontFamily: "monospace" }}>{r.reagent}</td>
                     <td style={{ padding: "8px 12px", border: "1px solid #ddd" }}>{r.name}</td>
-                    <td style={{ padding: "8px 12px", border: "1px solid #ddd" }}>{r.type}</td>
-                    <td style={{ padding: "8px 12px", border: "1px solid #ddd", fontFamily: "monospace" }}>
-                      {(r.addAtC2 || []).map(a => a.label).join(', ') || '—'}
-                    </td>
-                    <td style={{ padding: "8px 12px", border: "1px solid #ddd", fontFamily: "monospace" }}>
-                      {(r.addAtC3 || []).map(a => a.label).join(', ') || '—'}
-                    </td>
+                    <td style={{ padding: "8px 12px", border: "1px solid #ddd", color: "#666", fontSize: "0.9rem" }}>{r.explanation || '—'}</td>
                     <td style={{ padding: "8px 12px", border: "1px solid #ddd", textAlign: "center" }}>
                       <button
-                        onClick={() => handleDelete(i)}
+                        onClick={() => handleDelete(r.id)}
                         style={{ background: "none", border: "1px solid #c00", color: "#c00", borderRadius: "4px", cursor: "pointer", padding: "2px 8px" }}
                       >
                         Delete

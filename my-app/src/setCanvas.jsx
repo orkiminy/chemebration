@@ -33,23 +33,9 @@ export default function SetCanvas({ atoms = [], bonds = [] }) {
     const dx = WIDTH / 2 - cx;
     const dy = HEIGHT / 2 - cy;
 
-    return atoms.map(a => {
-      const targetX = a.x + dx;
-      const targetY = a.y + dy;
-
-      // Snap to nearest grid point
-      let closest = gridPoints[0];
-      let minDist = Infinity;
-      for (const p of gridPoints) {
-        const d = Math.hypot(p.x - targetX, p.y - targetY);
-        if (d < minDist) {
-          minDist = d;
-          closest = p;
-        }
-      }
-      return { ...a, x: closest.x, y: closest.y };
-    });
-  }, [atoms, gridPoints]);
+    // Translate all atoms by the same offset — preserves relative positions
+    return atoms.map(a => ({ ...a, x: a.x + dx, y: a.y + dy }));
+  }, [atoms]);
 
   return (
     <div style={{ fontFamily: "Arial" }}>

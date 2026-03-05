@@ -20,9 +20,9 @@ export default function ReactionExplorer() {
   const [selectedBond, setSelectedBond] = useState(null);
 
   const [reagentSteps, setReagentSteps] = useState([""]);
-  const [productResult, setProductResult] = useState(null);
+  const [productSteps, setProductSteps] = useState([]); // [{reagent, atoms, bonds, explanation, noMatch}]
+  const [computing, setComputing] = useState(false);
   const [aiError, setAiError] = useState(null);
-  const [aiExplanation, setAiExplanation] = useState("");
 
   /* ---------- GRID ---------- */
   const gridPoints = useMemo(() => {
@@ -102,43 +102,57 @@ export default function ReactionExplorer() {
   const addStep = () => setReagentSteps(steps => [...steps, ""]);
   const removeStep = (i) => setReagentSteps(steps => steps.length === 1 ? steps : steps.filter((_, j) => j !== i));
 
-  /* ---------- COMPUTE (rule engine) ---------- */
-  const handleCompute = () => {
-    if (atoms.length === 0) {
-      setAiError("Draw a molecule first.");
-      return;
-    }
+  /* ---------- COMPUTE (rule engine — multi-step) ---------- */
+  const handleCompute = async () => {
+    if (atoms.length === 0) { setAiError("Draw a molecule first."); return; }
     const filledSteps = reagentSteps.map(s => s.trim()).filter(Boolean);
-    if (filledSteps.length === 0) {
-      setAiError("Enter at least one reagent above the arrow.");
-      return;
-    }
+    if (filledSteps.length === 0) { setAiError("Enter at least one reagent above the arrow."); return; }
 
-    // Try each step in order — use the first one that has a matching rule
-    let rule = null;
-    for (const step of filledSteps) {
-      rule = findRule(step);
-      if (rule) break;
-    }
-
-    if (!rule) {
-      setAiError(`No rule found for "${filledSteps.join(", ")}". Add it in Rule Builder first.`);
-      setProductResult(null);
-      setAiExplanation("");
-      return;
-    }
-
-    const result = applyRule(atoms, bonds, rule);
-    if (!result) {
-      setAiError("Could not apply rule — make sure your molecule has a double bond.");
-      setProductResult(null);
-      setAiExplanation("");
-      return;
-    }
-
-    setProductResult(result);
-    setAiExplanation(result.explanation || "");
+    setComputing(true);
     setAiError(null);
+    setProductSteps([]);
+
+    let currentAtoms = atoms;
+    let currentBonds = bonds;
+    const steps = [];
+
+    for (const step of filledSteps) {
+      const rule = await findRule(step);
+      if (!rule) {
+        setAiError(`No rule found for "${step}". Add it in Rule Builder first.`);
+        setComputing(false);
+        return;
+      }
+
+      const result = applyRule(currentAtoms, currentBonds, rule);
+      console.log(`[ReactionExplorer] "${step}" →`, {
+        noMatch: result?.noMatch ?? false,
+        productAtoms: result?.products[0]?.atoms?.length,
+        productBonds: result?.products[0]?.bonds?.length,
+        atoms: result?.products[0]?.atoms,
+      });
+      if (!result) {
+        setAiError(`Could not apply rule for "${step}".`);
+        setComputing(false);
+        return;
+      }
+
+      const product = result.products[0];
+      steps.push({
+        reagent: step,
+        atoms: product.atoms,
+        bonds: product.bonds,
+        explanation: result.explanation,
+        noMatch: result.noMatch || false,
+      });
+
+      // Feed this step's product into the next step
+      currentAtoms = product.atoms;
+      currentBonds = product.bonds;
+    }
+
+    setProductSteps(steps);
+    setComputing(false);
   };
 
   const atomRadius = (label) => (label && label.length > 1 ? 18 : ATOM_RADIUS);
@@ -332,12 +346,16 @@ export default function ReactionExplorer() {
             </div>
           </div>
 
-          {/* Right: product */}
+          {/* Right: product steps */}
           <div className="exercise-panel">
             <div className="exercise-panel-box">
               <div className="exercise-panel-label" style={{ color: "#1a6b3a" }}>Product</div>
 
-              {!productResult && !aiError && (
+              {computing && (
+                <div style={{ padding: "2rem", color: "#888", textAlign: "center" }}>Computing…</div>
+              )}
+
+              {!computing && productSteps.length === 0 && !aiError && (
                 <div style={{ padding: "2rem", color: "#aaa", textAlign: "center", fontSize: "0.95rem" }}>
                   Draw a molecule and click Compute
                 </div>
@@ -349,33 +367,30 @@ export default function ReactionExplorer() {
                 </div>
               )}
 
-              {productResult && productResult.products.length > 1 ? (
-                /* Cleavage: two products */
-                <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", padding: "0.5rem" }}>
-                  {productResult.products.map((prod, i) => (
-                    <React.Fragment key={i}>
-                      <div style={{ textAlign: "center" }}>
-                        <div style={{ fontSize: "0.8rem", color: "#1a6b3a", marginBottom: 2 }}>Product {i + 1}</div>
-                        <SetCanvas atoms={prod.atoms} bonds={prod.bonds} />
+              {productSteps.length > 0 && (() => {
+                const final = productSteps[productSteps.length - 1];
+                return (
+                  <div style={{ padding: "0.75rem 1rem" }}>
+                    {final.noMatch && (
+                      <div style={{ fontSize: "0.8rem", color: "#b87700", background: "#fff8e1", border: "1px solid #f0d070", padding: "6px 10px", borderRadius: 4, marginBottom: "8px" }}>
+                        ⚠️ Pattern not found in your molecule — showing the stored example instead.
+                        Check the browser console (F12) for details.
                       </div>
-                      {i < productResult.products.length - 1 && (
-                        <div style={{ fontSize: "1.5rem", color: "#888", padding: "0 0.25rem" }}>+</div>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </div>
-              ) : productResult && productResult.products.length === 1 ? (
-                /* Single product */
-                <div style={{ textAlign: "center", padding: "0.5rem" }}>
-                  <SetCanvas atoms={productResult.products[0].atoms} bonds={productResult.products[0].bonds} />
-                </div>
-              ) : null}
-
-              {aiExplanation && (
-                <div style={{ padding: "0.75rem 1rem", color: "#444", fontSize: "0.9rem", borderTop: "1px solid #eee", fontStyle: "italic" }}>
-                  {aiExplanation}
-                </div>
-              )}
+                    )}
+                    <div style={{ fontSize: "0.72rem", color: "#aaa", textAlign: "right", marginBottom: "4px" }}>
+                      {final.atoms?.length ?? 0} atoms · {final.bonds?.length ?? 0} bonds
+                    </div>
+                    <div style={{ textAlign: "center" }}>
+                      <SetCanvas atoms={final.atoms} bonds={final.bonds} />
+                    </div>
+                    {final.explanation && (
+                      <div style={{ fontSize: "0.85rem", color: "#555", fontStyle: "italic", marginTop: "6px" }}>
+                        {final.explanation}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
