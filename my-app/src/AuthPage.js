@@ -35,6 +35,7 @@ export default function AuthPage() {
           questionCount: 0,
           correctCount: 0,
           lastActive: new Date(),
+          hasSeenTutorial: false,
         });
       }
       navigate('/');

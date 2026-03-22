@@ -10,6 +10,31 @@ import { db } from './firebase';
 import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, increment } from "firebase/firestore";
 import { useAuth } from './contexts/AuthContext';
 
+const ROW_H = 40 * Math.sin(Math.PI / 3);
+
+const RING_TEMPLATES = {
+  benzene: {
+    offsets: [
+      { dx: 0, dy: 0 }, { dx: 40, dy: 0 },
+      { dx: 60, dy: ROW_H }, { dx: 40, dy: 2 * ROW_H },
+      { dx: 0, dy: 2 * ROW_H }, { dx: -20, dy: ROW_H },
+    ],
+    bonds: [
+      { a: 0, b: 1, order: 2 }, { a: 1, b: 2, order: 1 },
+      { a: 2, b: 3, order: 2 }, { a: 3, b: 4, order: 1 },
+      { a: 4, b: 5, order: 2 }, { a: 5, b: 0, order: 1 },
+    ],
+  },
+  cyclohexane: {
+    offsets: [
+      { dx: 0, dy: 0 }, { dx: 40, dy: 0 },
+      { dx: 60, dy: ROW_H }, { dx: 40, dy: 2 * ROW_H },
+      { dx: 0, dy: 2 * ROW_H }, { dx: -20, dy: ROW_H },
+    ],
+    bonds: Array.from({ length: 6 }, (_, i) => ({ a: i, b: (i + 1) % 6, order: 1 })),
+  },
+};
+
 export default function ExerciseCanvas({ exerciseType = "OneStepReaction" }) {
   /* ---------- CONSTANTS ---------- */
   const WIDTH = 480;
@@ -40,6 +65,13 @@ export default function ExerciseCanvas({ exerciseType = "OneStepReaction" }) {
   const [showAnswer, setShowAnswer] = useState(false);
   const [answerProducts, setAnswerProducts] = useState([]);
   const [answerEnantiomerIndex, setAnswerEnantiomerIndex] = useState(0);
+
+  // Drawing helpers
+  const [history, setHistory] = useState([]);
+  const [future, setFuture] = useState([]);
+  const [dragFrom, setDragFrom] = useState(null);
+  const [dragTo, setDragTo] = useState(null);
+  const [ringType, setRingType] = useState(null);
 
 const { user } = useAuth();
   const currentLevel = reactionLevels[levelIndex];
@@ -117,6 +149,12 @@ const { user } = useAuth();
     return nextIndex;
   };
 
+  /* ---------- HISTORY ---------- */
+  const saveHistory = (currentAtoms, currentBonds) => {
+    setHistory(h => [...h.slice(-30), { atoms: currentAtoms, bonds: currentBonds }]);
+    setFuture([]);
+  };
+
   /* ---------- GRID ---------- */
   const gridPoints = useMemo(() => {
     const points = [];
@@ -131,82 +169,194 @@ const { user } = useAuth();
     return points;
   }, []);
 
-  /* ---------- INTERACTION HANDLERS ---------- */
-  const handleCanvasClick = (e) => {
-    if (tool !== "pencil") return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    let closest = null;
-    let minDist = Infinity;
+  /* ---------- SNAP & RING ---------- */
+  const snapNearest = (x, y) => {
+    let closest = null, minDist = Infinity;
     for (const p of gridPoints) {
       const d = Math.hypot(p.x - x, p.y - y);
       if (d < minDist) { minDist = d; closest = p; }
     }
-    const snap = minDist <= SNAP_RADIUS ? closest : null;
-
-    if (!snap) return;
-    if (atoms.some(a => a.x === snap.x && a.y === snap.y)) return;
-
-    setAtoms([...atoms, { id: Date.now(), x: snap.x, y: snap.y, label: atomType }]);
-    setSelectedAtom(null);
+    return { snap: closest, dist: minDist };
   };
 
-  const handleAtomClick = (atomId) => {
+  const stampRing = (type, baseX, baseY, currentAtoms, currentBonds) => {
+    const tmpl = RING_TEMPLATES[type];
+    const ts = Date.now();
+    const newAtoms = [];
+    const idMap = {};
+    tmpl.offsets.forEach(({ dx, dy }, i) => {
+      const x = baseX + dx, y = baseY + dy;
+      const existing = currentAtoms.find(a => Math.round(a.x) === Math.round(x) && Math.round(a.y) === Math.round(y));
+      if (existing) { idMap[i] = existing.id; }
+      else { idMap[i] = ts + i; newAtoms.push({ id: ts + i, x, y, label: 'C' }); }
+    });
+    const newBonds = tmpl.bonds
+      .map((b, i) => ({ id: ts + 100 + i, from: idMap[b.a], to: idMap[b.b], order: b.order, style: 'solid' }))
+      .filter(nb => !currentBonds.some(eb =>
+        (eb.from === nb.from && eb.to === nb.to) || (eb.from === nb.to && eb.to === nb.from)
+      ));
+    saveHistory(currentAtoms, currentBonds);
+    setAtoms(prev => [...prev, ...newAtoms]);
+    setBonds(prev => [...prev, ...newBonds]);
+  };
+
+  /* ---------- INTERACTION HANDLERS ---------- */
+  const handleCanvasMouseDown = (e) => {
+    if (tool === "eraser") return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const { snap, dist } = snapNearest(e.clientX - rect.left, e.clientY - rect.top);
+    if (!snap || dist > SNAP_RADIUS * 3) return;
+    const existingAtom = atoms.find(a => a.x === snap.x && a.y === snap.y);
+    setDragFrom({ x: snap.x, y: snap.y, atomId: existingAtom?.id ?? null });
+    setDragTo(snap);
+  };
+
+  const handleCanvasMouseMove = (e) => {
+    if (!dragFrom) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const { snap } = snapNearest(e.clientX - rect.left, e.clientY - rect.top);
+    if (snap) setDragTo(snap);
+  };
+
+  const handleCanvasMouseUp = (e) => {
+    if (!dragFrom) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const { snap } = snapNearest(e.clientX - rect.left, e.clientY - rect.top);
+    const end = snap ?? dragTo;
+    const wasDrag = end && (Math.hypot(end.x - dragFrom.x, end.y - dragFrom.y) > SNAP_RADIUS);
+
+    if (!wasDrag) {
+      if (ringType && end) {
+        stampRing(ringType, end.x, end.y, atoms, bonds);
+      } else if (!atoms.some(a => a.x === dragFrom.x && a.y === dragFrom.y)) {
+        saveHistory(atoms, bonds);
+        setAtoms(prev => [...prev, { id: Date.now(), x: dragFrom.x, y: dragFrom.y, label: atomType }]);
+      }
+      setSelectedAtom(null);
+    } else if (end) {
+      let newAtoms = [...atoms];
+      let startId = dragFrom.atomId;
+      if (!startId) {
+        startId = Date.now();
+        newAtoms = [...newAtoms, { id: startId, x: dragFrom.x, y: dragFrom.y, label: atomType }];
+      }
+      let endAtom = newAtoms.find(a => a.x === end.x && a.y === end.y);
+      let endId;
+      if (endAtom) {
+        endId = endAtom.id;
+      } else {
+        endId = Date.now() + 1;
+        newAtoms = [...newAtoms, { id: endId, x: end.x, y: end.y, label: atomType }];
+      }
+      if (startId !== endId && !bonds.some(b =>
+        (b.from === startId && b.to === endId) || (b.from === endId && b.to === startId)
+      )) {
+        saveHistory(atoms, bonds);
+        setAtoms(newAtoms);
+        setBonds(prev => [...prev, { id: Date.now() + 2, from: startId, to: endId, order: 1, style: bondStyle }]);
+      }
+      setSelectedAtom(null);
+    }
+    setDragFrom(null);
+    setDragTo(null);
+  };
+
+  const handleAtomMouseDown = (e, atomId) => {
+    if (tool === "eraser") return;
+    e.stopPropagation();
+    const atom = atoms.find(a => a.id === atomId);
+    if (atom) setDragFrom({ x: atom.x, y: atom.y, atomId });
+  };
+
+  const handleAtomClick = (e, atomId) => {
+    e.stopPropagation();
     if (tool === "eraser") {
+      saveHistory(atoms, bonds);
       setAtoms(atoms.filter(a => a.id !== atomId));
       setBonds(bonds.filter(b => b.from !== atomId && b.to !== atomId));
       return;
     }
-    if (selectedAtom === null) {
-      setSelectedAtom(atomId);
-      return;
-    }
-    if (selectedAtom === atomId) {
-      setSelectedAtom(null);
-      return;
-    }
-
+    if (dragFrom) return;
+    if (selectedAtom === null) { setSelectedAtom(atomId); return; }
+    if (selectedAtom === atomId) { setSelectedAtom(null); return; }
     const exists = bonds.some(b =>
-      (b.from === selectedAtom && b.to === atomId) ||
-      (b.from === atomId && b.to === selectedAtom)
+      (b.from === selectedAtom && b.to === atomId) || (b.from === atomId && b.to === selectedAtom)
     );
-
     if (!exists) {
-      setBonds([...bonds, {
-        id: Date.now(),
-        from: selectedAtom,
-        to: atomId,
-        order: 1,
-        style: bondStyle,
-      }]);
+      saveHistory(atoms, bonds);
+      setBonds([...bonds, { id: Date.now(), from: selectedAtom, to: atomId, order: 1, style: bondStyle }]);
     }
     setSelectedAtom(null);
   };
 
   const handleBondClick = (bondId) => {
     if (tool === "eraser") {
+      saveHistory(atoms, bonds);
       setBonds(bonds.filter(b => b.id !== bondId));
       return;
     }
-    setBonds(bonds.map(b =>
-      b.id === bondId ? { ...b, order: b.order === 3 ? 1 : b.order + 1 } : b
-    ));
+    saveHistory(atoms, bonds);
+    setBonds(bonds.map(b => b.id === bondId ? { ...b, order: b.order === 3 ? 1 : b.order + 1 } : b));
     setSelectedBond(bondId);
   };
 
-  /* ---------- DELETE KEY ---------- */
+  /* ---------- KEYBOARD SHORTCUTS ---------- */
   useEffect(() => {
-    const handler = (e) => {
-      if (e.key === "Delete" && selectedBond) {
-        setBonds(prev => prev.filter(b => b.id !== selectedBond));
-        setSelectedBond(null);
-      }
+    const ATOM_KEYS = {
+      c: 'C', h: 'H', o: 'O', n: 'N',
+      f: 'F', i: 'I', s: 'S', p: 'P',
+      b: 'Br', l: 'Cl', r: 'R', x: 'X',
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [selectedBond]);
+    const handler = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      // Undo
+      if (e.ctrlKey && !e.shiftKey && e.key === 'z') {
+        e.preventDefault();
+        setHistory(h => {
+          if (!h.length) return h;
+          const prev = h[h.length - 1];
+          setFuture(f => [{ atoms, bonds }, ...f]);
+          setAtoms(prev.atoms); setBonds(prev.bonds);
+          return h.slice(0, -1);
+        });
+        return;
+      }
+      // Redo
+      if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+        e.preventDefault();
+        setFuture(f => {
+          if (!f.length) return f;
+          const next = f[0];
+          setHistory(h => [...h, { atoms, bonds }]);
+          setAtoms(next.atoms); setBonds(next.bonds);
+          return f.slice(1);
+        });
+        return;
+      }
+      if (e.key === 'Delete') {
+        if (selectedBond) { setBonds(prev => prev.filter(b => b.id !== selectedBond)); setSelectedBond(null); }
+        if (selectedAtom) {
+          saveHistory(atoms, bonds);
+          setAtoms(prev => prev.filter(a => a.id !== selectedAtom));
+          setBonds(prev => prev.filter(b => b.from !== selectedAtom && b.to !== selectedAtom));
+          setSelectedAtom(null);
+        }
+        return;
+      }
+      const newLabel = ATOM_KEYS[e.key.toLowerCase()];
+      if (!newLabel) return;
+      // Relabel selected atom
+      if (selectedAtom !== null) {
+        saveHistory(atoms, bonds);
+        setAtoms(prev => prev.map(a => a.id === selectedAtom ? { ...a, label: newLabel } : a));
+        setSelectedAtom(null);
+        return;
+      }
+      setAtomType(newLabel); setTool('pencil'); setRingType(null);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [selectedBond, selectedAtom, atoms, bonds]);
 
   /* ---------- SHOW ANSWER ---------- */
   const handleShowAnswer = () => {
@@ -392,8 +542,11 @@ const { user } = useAuth();
               width={WIDTH}
               height={HEIGHT}
               viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-              style={{ display: "block", maxWidth: "100%", height: "auto", cursor: tool === "eraser" ? "not-allowed" : "crosshair" }}
-              onClick={handleCanvasClick}
+              style={{ display: "block", maxWidth: "100%", height: "auto", cursor: tool === "eraser" ? "not-allowed" : ringType ? "copy" : "crosshair" }}
+              onMouseDown={handleCanvasMouseDown}
+              onMouseMove={handleCanvasMouseMove}
+              onMouseUp={handleCanvasMouseUp}
+              onMouseLeave={() => { setDragFrom(null); setDragTo(null); }}
             >
               {/* GRID */}
               {gridPoints.map((p, i) => (
@@ -406,23 +559,23 @@ const { user } = useAuth();
                 const a2 = atoms.find(a => a.id === bond.to);
                 if (!a1 || !a2) return null;
 
+                const bondHandlers = {
+                  onMouseDown: (e) => e.stopPropagation(),
+                  onClick: (e) => { e.stopPropagation(); handleBondClick(bond.id); },
+                };
+
                 if (bond.style === "wedge") {
                   const dx = a2.x - a1.x;
                   const dy = a2.y - a1.y;
                   const angle = Math.atan2(dy, dx);
-                  const width = 6;
+                  const w = 6;
                   const perp = angle + Math.PI / 2;
-                  const p2x = a2.x + Math.cos(perp) * width;
-                  const p2y = a2.y + Math.sin(perp) * width;
-                  const p3x = a2.x - Math.cos(perp) * width;
-                  const p3y = a2.y - Math.sin(perp) * width;
-
                   return (
                     <polygon
                       key={bond.id}
-                      points={`${a1.x},${a1.y} ${p2x},${p2y} ${p3x},${p3y}`}
+                      points={`${a1.x},${a1.y} ${a2.x + Math.cos(perp) * w},${a2.y + Math.sin(perp) * w} ${a2.x - Math.cos(perp) * w},${a2.y - Math.sin(perp) * w}`}
                       fill={bond.id === selectedBond ? "red" : "#000"}
-                      onClick={(e) => { e.stopPropagation(); handleBondClick(bond.id); }}
+                      {...bondHandlers}
                     />
                   );
                 }
@@ -433,19 +586,27 @@ const { user } = useAuth();
                 const offsetX = (dx / len) * 4;
                 const offsetY = (dy / len) * 4;
 
-                return [...Array(bond.order)].map((_, i) => (
-                  <line
-                    key={bond.id + "-" + i}
-                    x1={a1.x + offsetX * i}
-                    y1={a1.y - offsetY * i}
-                    x2={a2.x + offsetX * i}
-                    y2={a2.y - offsetY * i}
-                    stroke={bond.id === selectedBond ? "red" : "#000"}
-                    strokeWidth="3"
-                    strokeDasharray={bond.style === "striped" ? "6,4" : "0"}
-                    onClick={(e) => { e.stopPropagation(); handleBondClick(bond.id); }}
-                  />
-                ));
+                return (
+                  <g key={bond.id}>
+                    {/* Wide invisible hit-target */}
+                    <line
+                      x1={a1.x} y1={a1.y} x2={a2.x} y2={a2.y}
+                      stroke="transparent" strokeWidth="16"
+                      {...bondHandlers}
+                    />
+                    {[...Array(bond.order)].map((_, i) => (
+                      <line
+                        key={i}
+                        x1={a1.x + offsetX * i} y1={a1.y - offsetY * i}
+                        x2={a2.x + offsetX * i} y2={a2.y - offsetY * i}
+                        stroke={bond.id === selectedBond ? "red" : "#000"}
+                        strokeWidth="3"
+                        strokeDasharray={bond.style === "striped" ? "6,4" : "0"}
+                        pointerEvents="none"
+                      />
+                    ))}
+                  </g>
+                );
               })}
 
               {/* ATOMS */}
@@ -456,7 +617,8 @@ const { user } = useAuth();
                     cy={atom.y}
                     r={atomRadius(atom.label)}
                     fill={atom.id === selectedAtom ? "red" : "#5f021f"}
-                    onClick={(e) => { e.stopPropagation(); handleAtomClick(atom.id); }}
+                    onMouseDown={(e) => handleAtomMouseDown(e, atom.id)}
+                    onClick={(e) => handleAtomClick(e, atom.id)}
                   />
                   {atom.label && atom.label !== "C" && (
                     <text
@@ -472,32 +634,44 @@ const { user } = useAuth();
                   )}
                 </g>
               ))}
+
+              {/* Drag preview line */}
+              {dragFrom && dragTo && (Math.hypot(dragTo.x - dragFrom.x, dragTo.y - dragFrom.y) > SNAP_RADIUS) && (
+                <line
+                  x1={dragFrom.x} y1={dragFrom.y}
+                  x2={dragTo.x}   y2={dragTo.y}
+                  stroke="#999" strokeWidth="2" strokeDasharray="5,3" pointerEvents="none"
+                />
+              )}
             </svg>
 
-            {/* TOOLBAR */}
-            <div className="exercise-toolbar">
+          </div>
+          {/* Toolbar outside panel-box so it never affects canvas width */}
+          <div className="exercise-toolbar" style={{ width: WIDTH, boxSizing: "border-box" }}>
               <div className="toolbar-group">
-                <button
-                  className={`toolbar-btn${tool === "pencil" ? " toolbar-btn-active" : ""}`}
-                  onClick={() => setTool("pencil")}
-                >
-                  Pencil
-                </button>
-                <button
-                  className={`toolbar-btn${tool === "eraser" ? " toolbar-btn-active" : ""}`}
-                  onClick={() => setTool("eraser")}
-                >
-                  Eraser
-                </button>
-                <button
-                  className="toolbar-btn"
-                  onClick={() => { setAtoms([]); setBonds([]); }}
-                >
-                  Clear
-                </button>
+                <button className={`toolbar-btn${tool === "pencil" ? " toolbar-btn-active" : ""}`} onClick={() => { setTool("pencil"); setRingType(null); }}>Pencil</button>
+                <button className={`toolbar-btn${tool === "eraser" ? " toolbar-btn-active" : ""}`} onClick={() => { setTool("eraser"); setRingType(null); }}>Eraser</button>
+                <button className="toolbar-btn" onClick={() => { saveHistory(atoms, bonds); setAtoms([]); setBonds([]); }}>Clear</button>
+                <button className="toolbar-btn" disabled={!history.length} onClick={() => {
+                  const prev = history[history.length - 1];
+                  setFuture(f => [{ atoms, bonds }, ...f]);
+                  setHistory(h => h.slice(0, -1));
+                  setAtoms(prev.atoms); setBonds(prev.bonds);
+                }}>↩ Undo</button>
+                <button className="toolbar-btn" disabled={!future.length} onClick={() => {
+                  const next = future[0];
+                  setHistory(h => [...h, { atoms, bonds }]);
+                  setFuture(f => f.slice(1));
+                  setAtoms(next.atoms); setBonds(next.bonds);
+                }}>↪ Redo</button>
               </div>
 
-              {tool === "pencil" && (
+              <div className="toolbar-group">
+                <button className={`toolbar-btn${ringType === 'benzene' ? ' toolbar-btn-active' : ''}`} onClick={() => { setRingType(r => r === 'benzene' ? null : 'benzene'); setTool('pencil'); }}>Benzene</button>
+                <button className={`toolbar-btn${ringType === 'cyclohexane' ? ' toolbar-btn-active' : ''}`} onClick={() => { setRingType(r => r === 'cyclohexane' ? null : 'cyclohexane'); setTool('pencil'); }}>Cyclohex</button>
+              </div>
+
+              {tool === "pencil" && !ringType && (
                 <div className="toolbar-group">
                   <select className="toolbar-select" value={atomType} onChange={(e) => setAtomType(e.target.value)}>
                     <option value="C">C</option>
@@ -523,19 +697,12 @@ const { user } = useAuth();
               )}
 
               <div className="toolbar-group">
-                <button className="toolbar-btn toolbar-btn-check" onClick={checkAnswer}>
-                  Check Answer
-                </button>
-                <button
-                  className="toolbar-btn"
-                  style={{ opacity: 0.75 }}
-                  onClick={handleShowAnswer}
-                >
+                <button className="toolbar-btn toolbar-btn-check" onClick={checkAnswer}>Check Answer</button>
+                <button className="toolbar-btn" style={{ opacity: 0.75 }} onClick={handleShowAnswer}>
                   {showAnswer ? "Hide Answer" : "Show Answer"}
                 </button>
               </div>
             </div>
-          </div>
         </div>
       </div>
 

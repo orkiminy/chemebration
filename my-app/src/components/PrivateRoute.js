@@ -1,9 +1,10 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function PrivateRoute({ children }) {
-  const { user, loading } = useAuth();
+  const { user, loading, isFirstTime } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -15,6 +16,10 @@ export default function PrivateRoute({ children }) {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (isFirstTime && location.pathname !== '/tutorial') {
+    return <Navigate to="/tutorial" replace />;
   }
 
   return children;
