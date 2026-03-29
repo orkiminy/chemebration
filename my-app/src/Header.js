@@ -57,10 +57,7 @@ function Header() {
                 <div className="icon">
                   <i className="bx bxl-tiktok"></i>
                 </div>
-                <div className="icon">
-                  <i className="bx bxl-facebook"></i>
-                </div>
-                <div className="icon">
+<div className="icon">
                   <a href="mailto:Chemebration@gmail.com">
                     <i className="bx bx-envelope"></i>
                   </a>

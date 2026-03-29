@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { extractRule, saveRule, loadRules, deleteRule, updateRule } from "../engine/reactionRules";
+import { extractRule, saveRule, loadRules, deleteRule, updateRule, autoSubscript } from "../engine/reactionRules";
 import "../App.css";
 
 const WIDTH = 400;
@@ -493,6 +493,26 @@ function CanvasEditor({ atoms, setAtoms, bonds, setBonds, label, initialAtoms, i
 
 // ─── Main RuleBuilder page ────────────────────────────────────────────────────
 
+const SUB_TO_PLAIN = {'₀':'0','₁':'1','₂':'2','₃':'3','₄':'4','₅':'5','₆':'6','₇':'7','₈':'8','₉':'9'};
+function toPlainDigits(str) {
+  return str.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, c => SUB_TO_PLAIN[c] || c);
+}
+function formatReagentDisplay(str) {
+  if (!str) return null;
+  const s = toPlainDigits(str);
+  const parts = [];
+  const re = /([A-Za-z])(\d+)/g;
+  let last = 0, m;
+  while ((m = re.exec(s)) !== null) {
+    if (m.index > last) parts.push(s.slice(last, m.index));
+    parts.push(m[1]);
+    parts.push(<span key={m.index} style={{ fontSize: "0.72em", verticalAlign: "baseline" }}>{m[2]}</span>);
+    last = m.index + m[0].length;
+  }
+  if (last < s.length) parts.push(s.slice(last));
+  return parts.length > 1 ? parts : s;
+}
+
 export default function RuleBuilder() {
   const [leftAtoms, setLeftAtoms] = useState([]);
   const [leftBonds, setLeftBonds] = useState([]);
@@ -607,13 +627,20 @@ export default function RuleBuilder() {
             {reagentSteps.map((step, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: "4px", width: "100%" }}>
                 <span style={{ color: "#5f021f", fontWeight: "bold", fontSize: "0.85rem", minWidth: "20px" }}>{i + 1}.</span>
-                <input
-                  type="text"
-                  value={step}
-                  onChange={(e) => updateStep(i, e.target.value)}
-                  placeholder={i === 0 ? "e.g. HBr" : "e.g. H2O"}
-                  style={{ flex: 1, padding: "5px 6px", border: "1.5px solid #5f021f", borderRadius: "5px", fontSize: "0.85rem", textAlign: "center", minWidth: 0 }}
-                />
+                <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
+                  <input
+                    type="text"
+                    value={step}
+                    onChange={(e) => updateStep(i, toPlainDigits(e.target.value))}
+                    placeholder=""
+                    style={{ width: "100%", padding: "5px 6px 8px", border: "1.5px solid #5f021f", borderRadius: "5px", fontSize: "1rem", textAlign: "center", lineHeight: "1.6", color: "transparent", caretColor: "#5f021f", background: "white", boxSizing: "border-box" }}
+                  />
+                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1rem", pointerEvents: "none", overflow: "hidden" }}>
+                    <span style={{ whiteSpace: "nowrap", color: step ? "#000" : "#999" }}>
+                      {step ? formatReagentDisplay(step) : (i === 0 ? "e.g. HBr" : "e.g. H2O")}
+                    </span>
+                  </div>
+                </div>
                 {reagentSteps.length > 1 && (
                   <span onClick={() => removeStep(i)} style={{ color: "#999", cursor: "pointer", fontSize: "1.1rem", padding: "0 2px", userSelect: "none" }}>×</span>
                 )}
@@ -724,7 +751,7 @@ export default function RuleBuilder() {
               <tbody>
                 {rules.map((r) => (
                   <tr key={r.id} style={{ borderBottom: "1px solid #eee" }}>
-                    <td style={{ padding: "8px 12px", border: "1px solid #ddd", fontFamily: "monospace" }}>{r.reagent}</td>
+                    <td style={{ padding: "8px 12px", border: "1px solid #ddd", fontFamily: "monospace" }}>{autoSubscript(r.reagent)}</td>
                     <td style={{ padding: "8px 12px", border: "1px solid #ddd" }}>{r.name}</td>
                     <td style={{ padding: "8px 12px", border: "1px solid #ddd", color: "#666", fontSize: "0.9rem" }}>{r.explanation || '—'}</td>
                     <td style={{ padding: "8px 12px", border: "1px solid #ddd", color: "#666", fontSize: "0.9rem" }}>{r.reactionType || '—'}</td>
@@ -775,7 +802,7 @@ export default function RuleBuilder() {
 
               <div style={{ textAlign: "center", minWidth: 90 }}>
                 <div style={{ fontSize: "0.85rem", color: "#5f021f", fontWeight: 600, marginBottom: 4 }}>
-                  {viewRule.reagent}
+                  {autoSubscript(viewRule.reagent)}
                 </div>
                 <svg width="80" height="20" viewBox="0 0 80 20">
                   <line x1="2" y1="10" x2="66" y2="10" stroke="#5f021f" strokeWidth="2.5" />

@@ -34,6 +34,26 @@ const RING_TEMPLATES = {
   },
 };
 
+const SUB_TO_PLAIN = {'₀':'0','₁':'1','₂':'2','₃':'3','₄':'4','₅':'5','₆':'6','₇':'7','₈':'8','₉':'9'};
+function toPlainDigits(str) {
+  return str.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, c => SUB_TO_PLAIN[c] || c);
+}
+function formatReagentDisplay(str) {
+  if (!str) return null;
+  const s = toPlainDigits(str);
+  const parts = [];
+  const re = /([A-Za-z])(\d+)/g;
+  let last = 0, m;
+  while ((m = re.exec(s)) !== null) {
+    if (m.index > last) parts.push(s.slice(last, m.index));
+    parts.push(m[1]);
+    parts.push(<span key={m.index} style={{ fontSize: "0.72em", verticalAlign: "baseline" }}>{m[2]}</span>);
+    last = m.index + m[0].length;
+  }
+  if (last < s.length) parts.push(s.slice(last));
+  return parts.length > 1 ? parts : s;
+}
+
 export default function ReactionExplorer() {
   const [atoms, setAtoms] = useState([]);
   const [bonds, setBonds] = useState([]);
@@ -353,7 +373,7 @@ export default function ReactionExplorer() {
           {/* Left: Drawing canvas */}
           <div className="exercise-panel">
             <div className="exercise-panel-box" style={{ width: WIDTH }}>
-              <div className="exercise-panel-label">Your Molecule</div>
+              <div className="exercise-panel-label">Reactant</div>
               <svg
                 width={WIDTH}
                 height={HEIGHT}
@@ -528,21 +548,28 @@ export default function ReactionExplorer() {
           {/* Middle: reagent steps + arrow + compute */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", alignSelf: "center" }}>
             <div style={{ border: "1px solid #ccc", borderRadius: "8px", background: "#fff", minWidth: "200px" }}>
-              <div style={{ fontSize: "1.1rem", fontWeight: 700, textTransform: "uppercase", color: "#5f021f", padding: "8px 0", textAlign: "center", background: "#faf5f7", borderBottom: "1px solid #eee", borderRadius: "8px 8px 0 0" }}>Reaction</div>
+              <div style={{ fontSize: "1.1rem", fontWeight: 700, textTransform: "uppercase", color: "#5f021f", padding: "8px 0", textAlign: "center", background: "#faf5f7", borderBottom: "1px solid #eee", borderRadius: "8px 8px 0 0" }}>Reagent</div>
               <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px", alignItems: "stretch" }}>
 
                 {/* Numbered reagent steps */}
                 {reagentSteps.map((step, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <span style={{ color: "#5f021f", fontWeight: "bold", fontSize: "0.9rem", minWidth: "20px" }}>{i + 1}.</span>
-                    <input
-                      type="text"
-                      value={step}
-                      onChange={(e) => updateStep(i, e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleCompute()}
-                      placeholder={i === 0 ? "e.g. HBr" : "e.g. H2O"}
-                      style={{ flex: 1, padding: "6px 8px", border: "1.5px solid #5f021f", borderRadius: "5px", fontSize: "0.9rem", textAlign: "center", minWidth: 0 }}
-                    />
+                    <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
+                      <input
+                        type="text"
+                        value={step}
+                        onChange={(e) => updateStep(i, toPlainDigits(e.target.value))}
+                        onKeyDown={(e) => e.key === "Enter" && handleCompute()}
+                        placeholder=""
+                        style={{ width: "100%", padding: "6px 8px 9px", border: "1.5px solid #5f021f", borderRadius: "5px", fontSize: "1.05rem", textAlign: "center", lineHeight: "1.6", color: "transparent", caretColor: "#5f021f", background: "white", boxSizing: "border-box" }}
+                      />
+                      <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.05rem", pointerEvents: "none", overflow: "hidden" }}>
+                        <span style={{ whiteSpace: "nowrap", color: step ? "#000" : "#999" }}>
+                          {step ? formatReagentDisplay(step) : (i === 0 ? "e.g. HBr" : "e.g. H2O")}
+                        </span>
+                      </div>
+                    </div>
                     {reagentSteps.length > 1 && (
                       <span
                         onClick={() => removeStep(i)}

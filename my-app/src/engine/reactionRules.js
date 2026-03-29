@@ -422,17 +422,36 @@ export async function updateRule(ruleId, ruleData) {
   await updateDoc(doc(db, RULES_COLLECTION, ruleId), ruleData);
 }
 
+const SUBSCRIPT_TO_NORMAL = {'₀':'0','₁':'1','₂':'2','₃':'3','₄':'4','₅':'5','₆':'6','₇':'7','₈':'8','₉':'9'};
+
+function normalizeReagentForMatch(str) {
+  return str
+    .toLowerCase()
+    .replace(/[₀₁₂₃₄₅₆₇₈₉]/g, c => SUBSCRIPT_TO_NORMAL[c])
+    .replace(/[\s,]+/g, '');
+}
+
+const SUBSCRIPT_MAP = {'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉'};
+
+export function autoSubscript(str) {
+  if (!str) return str;
+  return str.replace(/([A-Za-z])(\d+)/g, (_, letter, digits) =>
+    letter + digits.split('').map(d => SUBSCRIPT_MAP[d] || d).join('')
+  );
+}
+
 /**
  * Find a saved rule matching the given reagent string.
  * Tries exact/substring match first, then X-wildcard match.
  * Returns the rule with resolvedX attached, or null.
+ * Treats spaces and commas as equivalent separators, and normalizes subscript digits.
  */
 export async function findRule(reagentStr) {
   const rules = await loadRules();
-  const lower = reagentStr.toLowerCase().replace(/\s+/g, '');
+  const lower = normalizeReagentForMatch(reagentStr);
 
   const exact = rules.find(r => {
-    const rLower = (r.reagent || '').toLowerCase().replace(/\s+/g, '');
+    const rLower = normalizeReagentForMatch(r.reagent || '');
     return rLower === lower || lower.includes(rLower) || rLower.includes(lower);
   });
   if (exact) return { ...exact, resolvedX: extractHalogen(reagentStr) };

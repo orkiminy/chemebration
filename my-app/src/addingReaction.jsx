@@ -1,4 +1,5 @@
 import React from "react";
+import { autoSubscript } from "./engine/reactionRules";
 
 export default function ReactionArrow({ text }) {
   // Split the text string "H₂ / Pt" into two parts: ["H₂", "Pt"]
@@ -19,7 +20,7 @@ export default function ReactionArrow({ text }) {
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
         {/* Top Reagent (e.g. H₂) */}
         <div style={{ fontWeight: "bold", fontSize: "18px", marginBottom: "-5px" }}>
-          {top}
+          {autoSubscript(top)}
         </div>
         
         {/* The Arrow */}
@@ -27,7 +28,7 @@ export default function ReactionArrow({ text }) {
         
         {/* Bottom Reagent (e.g. Pt) */}
         <div style={{ fontWeight: "bold", fontSize: "14px", marginTop: "-5px" }}>
-          {bottom}
+          {autoSubscript(bottom)}
         </div>
       </div>
     </div>
