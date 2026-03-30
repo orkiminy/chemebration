@@ -9,6 +9,7 @@
  */
 
 const HALOGENS = ['Br', 'Cl', 'F', 'I'];
+const AROMATIC_ORDER = 1.5; // sentinel set by normalizeBenzeneRings(); matches mol order 1 or 2
 
 /**
  * Check whether a pattern atom label is compatible with a molecule atom label.
@@ -116,9 +117,14 @@ export function findMatches(patternAtoms, patternBonds, molAtoms, molBonds) {
         if (mappedNeighbor === undefined) continue; // not yet mapped — skip for now
 
         const norm = o => (!o || o === 0) ? 1 : o;
-        const molEdge = (molAdj.get(molAtom.id) || []).find(
-          e => e.neighbor === mappedNeighbor && norm(e.order) === norm(edge.order)
-        );
+        const patOrder = norm(edge.order);
+        const molEdge = (molAdj.get(molAtom.id) || []).find(e => {
+          if (e.neighbor !== mappedNeighbor) return false;
+          const molOrder = norm(e.order);
+          if (patOrder === AROMATIC_ORDER) return molOrder === 1 || molOrder === 2 || molOrder === AROMATIC_ORDER;
+          if (molOrder === AROMATIC_ORDER) return patOrder === 1 || patOrder === 2;
+          return molOrder === patOrder;
+        });
         if (!molEdge) { ok = false; break; }
       }
       if (!ok) continue;

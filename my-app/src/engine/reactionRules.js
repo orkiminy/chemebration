@@ -22,6 +22,10 @@ import { findMatches } from './subgraphMatch';
 
 const RULES_COLLECTION = 'reactionRules';
 const GRID_SPACING = 40;
+
+// Module-level counter for unique atom/bond IDs across multiple applyDelta calls
+// within the same synchronous frame (avoids Date.now() collisions).
+let _idCounter = Date.now();
 const ROW_H = GRID_SPACING * Math.sin(Math.PI / 3);
 const HALOGENS = ['Br', 'Cl', 'F', 'I'];
 
@@ -139,6 +143,80 @@ function xWildcardMatches(storedReagent, inputReagent) {
   });
 }
 
+// ─── BENZENE RING NORMALIZATION ───────────────────────────────────────────────
+// Detects 6-membered all-carbon rings with strictly alternating single/double
+// bonds and normalises all their intra-ring bonds to AROMATIC_ORDER (1.5).
+// This makes benzene matching position-agnostic without touching any other bonds.
+
+const AROMATIC_ORDER = 1.5;
+
+function findAromaticRings(atoms, bonds) {
+  const carbonIds = new Set(
+    atoms
+      .filter(a => { const l = (a.label || 'C').trim(); return l === 'C' || l === ''; })
+      .map(a => a.id)
+  );
+
+  const adj = new Map(atoms.map(a => [a.id, []]));
+  bonds.forEach(b => {
+    adj.get(b.from)?.push({ neighbor: b.to,  order: b.order || 1 });
+    adj.get(b.to)  ?.push({ neighbor: b.from, order: b.order || 1 });
+  });
+
+  const rings = [];
+  const seen  = new Set();
+
+  for (const startId of carbonIds) {
+    const dfs = (path) => {
+      if (path.length === 7) return;
+      const cur = path[path.length - 1];
+
+      for (const { neighbor } of (adj.get(cur) || [])) {
+        if (!carbonIds.has(neighbor)) continue;
+
+        if (path.length === 6 && neighbor === startId) {
+          const orders = [];
+          for (let i = 0; i < 6; i++) {
+            const edge = (adj.get(path[i]) || []).find(e => e.neighbor === path[(i + 1) % 6]);
+            if (!edge) { orders.push(null); break; }
+            orders.push(edge.order || 1);
+          }
+          const isAromatic =
+            orders.length === 6 &&
+            orders.every(o => o === 1 || o === 2) &&
+            orders.every((o, i) => o !== orders[(i + 1) % 6]);
+          if (!isAromatic) continue;
+
+          const key = [...path].sort((a, b) => a - b).join(',');
+          if (!seen.has(key)) { seen.add(key); rings.push(new Set(path)); }
+          continue;
+        }
+
+        if (path.includes(neighbor)) continue;
+        if (neighbor === startId && path.length < 6) continue;
+        path.push(neighbor);
+        dfs(path);
+        path.pop();
+      }
+    };
+    dfs([startId]);
+  }
+  return rings;
+}
+
+function normalizeBenzeneRings(atoms, bonds) {
+  const rings = findAromaticRings(atoms, bonds);
+  if (rings.length === 0) return bonds;
+
+  const aromaticBondIds = new Set();
+  for (const ring of rings) {
+    bonds.forEach(b => {
+      if (ring.has(b.from) && ring.has(b.to)) aromaticBondIds.add(b.id);
+    });
+  }
+  return bonds.map(b => aromaticBondIds.has(b.id) ? { ...b, order: AROMATIC_ORDER } : b);
+}
+
 // ─── DELTA COMPUTATION ────────────────────────────────────────────────────────
 
 /**
@@ -203,7 +281,9 @@ function computeDelta(patternAtoms, patternBonds, resultAtoms, resultBonds) {
 function applyDelta(molAtoms, molBonds, delta, match, rGroupCaptures, addedAtomPositions = new Map(), posReplacementPairs = new Map()) {
   let newAtoms = molAtoms.map(a => ({ ...a }));
   let newBonds = molBonds.map(b => ({ ...b }));
-  let idCounter = Date.now();
+  // Use the module-level counter so sequential calls never produce duplicate IDs.
+  if (_idCounter <= Date.now()) _idCounter = Date.now() + 1;
+  let idCounter = _idCounter;
 
   // Pre-scan: find atoms whose removal should be skipped ("rSkip").
   //
@@ -269,6 +349,24 @@ function applyDelta(molAtoms, molBonds, delta, match, rGroupCaptures, addedAtomP
     newAtoms = newAtoms.filter(a => !groupIds.has(a.id));
     newBonds = newBonds.filter(b => !groupIds.has(b.from) && !groupIds.has(b.to));
   });
+
+  // 1b. Prune newly-disconnected fragments.
+  // Removing a middle-chain atom (e.g. the alpha-CH2 of ethylbenzene) severs the
+  // bond to the rest of the chain, leaving those atoms with no path back to the ring.
+  // Strip any atom that has become fully disconnected (zero remaining bonds) — but
+  // only atoms that were NOT part of the core pattern match, so we never accidentally
+  // drop a ring atom that legitimately has degree 0 in the pattern.
+  {
+    const coreMatchIds = new Set(match.values());
+    const stillBonded = new Set();
+    newBonds.forEach(b => { stillBonded.add(b.from); stillBonded.add(b.to); });
+    const orphans = newAtoms.filter(a => !stillBonded.has(a.id) && !coreMatchIds.has(a.id));
+    if (orphans.length > 0) {
+      const orphanIds = new Set(orphans.map(a => a.id));
+      newAtoms = newAtoms.filter(a => !orphanIds.has(a.id));
+      // bonds were already removed when their connecting atom was removed above
+    }
+  }
 
   // 2. Update bond orders/styles between kept atoms
   delta.changedBonds.forEach(change => {
@@ -343,6 +441,9 @@ function applyDelta(molAtoms, molBonds, delta, match, rGroupCaptures, addedAtomP
     }
   });
 
+  // Advance the module-level counter past what this call used.
+  _idCounter = idCounter;
+
   return { atoms: newAtoms, bonds: newBonds };
 }
 
@@ -390,6 +491,21 @@ export function applyRule(molAtoms, molBonds, rule) {
     };
   }
 
+  // Strip disconnected (stray) atoms — atoms with zero bonds.
+  // A stray atom in the reactant is never part of any reactive site; it would carry
+  // through all delta applications unchanged and inflate the product atom count,
+  // causing wrong-answer false positives.  Removing them here is safe because they
+  // have no bonds to preserve.
+  const connectedIds = new Set();
+  molBonds.forEach(b => { connectedIds.add(b.from); connectedIds.add(b.to); });
+  // An isolated single atom (the whole molecule) should not be stripped.
+  if (connectedIds.size > 0) {
+    const strays = molAtoms.filter(a => !connectedIds.has(a.id));
+    if (strays.length > 0) {
+      molAtoms = molAtoms.filter(a => connectedIds.has(a.id));
+    }
+  }
+
   // Resolve X labels in the pattern so matching works for HBr → Br, etc.
   const patternAtoms = rule.patternAtoms.map(a => ({ ...a, label: resolveLabel(a.label || 'C') }));
 
@@ -399,8 +515,14 @@ export function applyRule(molAtoms, molBonds, rule) {
     addedAtoms: (rule.delta.addedAtoms || []).map(a => ({ ...a, label: resolveLabel(a.label || 'C') })),
   };
 
+  // Normalize benzene rings (alternating 1/2 → 1.5) in BOTH pattern and molecule
+  // before matching so position-shifted benzene rings always match.
+  // Original molBonds is preserved below for applyDelta.
+  const patternBondsNorm = normalizeBenzeneRings(patternAtoms, rule.patternBonds);
+  const molBondsNorm     = normalizeBenzeneRings(molAtoms, molBonds);
+
   // Find where the pattern appears in the student's molecule
-  const matches = findMatches(patternAtoms, rule.patternBonds, molAtoms, molBonds);
+  const matches = findMatches(patternAtoms, patternBondsNorm, molAtoms, molBondsNorm);
 
   if (matches.length === 0) {
     // Pattern not found — fall back to stored example with a warning
@@ -415,29 +537,66 @@ export function applyRule(molAtoms, molBonds, rule) {
     };
   }
 
-  // Apply the delta at the first match location
-  const { mapping, rGroupCaptures } = matches[0];
-
-  // Compute the similarity transform (translation + rotation + scale) that maps
-  // the rule's pattern canvas coordinates to the molecule's actual coordinates.
-  // Then apply it to every added atom's answer-key position so new atoms land
-  // in the right place relative to the matched mol atoms.
-  const xform = computePatternToMolTransform(patternAtoms, molAtoms, mapping);
-  const addedAtomPositions = new Map();
-  (rule.resultAtoms || []).forEach(ra => {
-    if (delta.addedAtoms.some(a => a.id === ra.id)) {
-      const { x, y } = xform(ra.x, ra.y);
-      addedAtomPositions.set(ra.id, snapToGrid(x, y));
+  // Deduplicate matches: a symmetric benzene ring produces CW + CCW variants
+  // for each chain (same mol-atom set, different pattern assignment order).
+  // Sorting all mapped mol-atom IDs gives the same key for both variants.
+  // IMPORTANT: among the variants sharing a key, keep the one whose similarity
+  // transform has the SMALLEST residual error.  A CW/CCW orientation mismatch
+  // makes num_a and num_b both sum to ~0, collapsing the transform to a pure
+  // translation that dumps all new atoms at the ring centroid.  The matching
+  // orientation variant has large num_a → well-conditioned scale+rotation.
+  function transformResidual(mapping) {
+    const pairs = [];
+    for (const [patId, molId] of mapping) {
+      const p = patternAtoms.find(a => a.id === patId);
+      const m = molAtoms.find(a => a.id === molId);
+      if (p && m) pairs.push({ p, m });
     }
-  });
+    if (pairs.length < 2) return 0;
+    const n = pairs.length;
+    const px_mean = pairs.reduce((s, { p }) => s + p.x, 0) / n;
+    const py_mean = pairs.reduce((s, { p }) => s + p.y, 0) / n;
+    const mx_mean = pairs.reduce((s, { m }) => s + m.x, 0) / n;
+    const my_mean = pairs.reduce((s, { m }) => s + m.y, 0) / n;
+    let num_a = 0, denom = 0;
+    for (const { p, m } of pairs) {
+      const cpx = p.x - px_mean, cpy = p.y - py_mean;
+      const cmx = m.x - mx_mean, cmy = m.y - my_mean;
+      num_a += cpx * cmx + cpy * cmy;
+      denom += cpx * cpx + cpy * cpy;
+    }
+    // A well-conditioned transform has large |num_a/denom|; return the residual
+    // so SMALLER = better.
+    if (denom < 1e-6) return 0;
+    const a = num_a / denom;
+    // Residual: sum of squared distances after applying transform
+    let res = 0;
+    for (const { p, m } of pairs) {
+      const cpx = p.x - px_mean, cpy = p.y - py_mean;
+      const cmx = m.x - mx_mean, cmy = m.y - my_mean;
+      const num_b_i = cpx * (m.y - my_mean) - cpy * (m.x - mx_mean);
+      const b = num_b_i / denom; // per-pair approximation; good enough for ranking
+      const ex = a * cpx - b * cpy - cmx;
+      const ey = b * cpx + a * cpy - cmy;
+      res += ex * ex + ey * ey;
+    }
+    return res;
+  }
 
-  // Build position-based replacement pairs: for each removed pattern atom, find an
-  // added result atom at the same canvas position with the same label. These are atoms
-  // the rule-builder drew at the same spot on both canvases without using Copy Left→Right.
-  // When such an atom has external connections in the molecule, we treat it as "kept"
-  // (Case 2 in applyDelta) so its outside bonds are never severed.
-  const POSITION_THRESHOLD = 3; // px — same grid point = distance 0, so 3 is generous
-  const posReplacementPairs = new Map(); // patternAtomId → addedAtom.id
+  const bestPerKey = new Map(); // key → { match, residual }
+  for (const match of matches) {
+    const key = [...match.mapping.values()].sort((a, b) => String(a).localeCompare(String(b))).join(',');
+    const res = transformResidual(match.mapping);
+    const existing = bestPerKey.get(key);
+    if (!existing || res < existing.residual) {
+      bestPerKey.set(key, { match, residual: res });
+    }
+  }
+  const uniqueMatches = [...bestPerKey.values()].map(v => v.match);
+
+  // posReplacementPairs is rule-derived — precompute once, reuse for all matches.
+  const POSITION_THRESHOLD = 3;
+  const posReplacementPairs = new Map();
   const usedResultIds = new Set();
   (rule.delta.removedAtomIds || []).forEach(pid => {
     const pa = rule.patternAtoms.find(a => a.id === pid);
@@ -454,14 +613,33 @@ export function applyRule(molAtoms, molBonds, rule) {
     }
   });
 
-  const { atoms, bonds } = applyDelta(molAtoms, molBonds, delta, mapping, rGroupCaptures, addedAtomPositions, posReplacementPairs);
+  // Apply the delta at every unique reactive site sequentially.
+  // molAtoms (original) anchors each similarity transform — ring atoms don't move.
+  let currentAtoms = molAtoms;
+  let currentBonds = molBonds;
+
+  for (const { mapping, rGroupCaptures } of uniqueMatches) {
+    const xform = computePatternToMolTransform(patternAtoms, molAtoms, mapping);
+    const addedAtomPositions = new Map();
+    (rule.resultAtoms || []).forEach(ra => {
+      if (delta.addedAtoms.some(a => a.id === ra.id)) {
+        const { x, y } = xform(ra.x, ra.y);
+        addedAtomPositions.set(ra.id, snapToGrid(x, y));
+      }
+    });
+
+    const result = applyDelta(currentAtoms, currentBonds, delta, mapping, rGroupCaptures, addedAtomPositions, posReplacementPairs);
+    currentAtoms = result.atoms;
+    currentBonds = result.bonds;
+  }
+
   return {
-    products: [{ atoms, bonds }],
+    products: [{ atoms: currentAtoms, bonds: currentBonds }],
     explanation: rule.explanation || '',
     noMatch: false,
     _debug: {
-      mapping,
-      rGroupCaptures,
+      mapping: matches[0].mapping,
+      rGroupCaptures: matches[0].rGroupCaptures,
       patternAtoms: rule.patternAtoms,
     },
   };
