@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { atomFill, atomTextColor, atomRadius } from "../engine/atomColors";
 import { Link } from "react-router-dom";
 import { extractRule, saveRule, loadRules, deleteRule, updateRule, autoSubscript } from "../engine/reactionRules";
 import "../App.css";
@@ -7,7 +8,6 @@ const WIDTH = 400;
 const HEIGHT = 400;
 const GRID_SPACING = 40;
 const ROW_H = GRID_SPACING * Math.sin(Math.PI / 3);
-const ATOM_RADIUS = 12;
 const SNAP_RADIUS = 10;
 
 const RING_TEMPLATES = {
@@ -36,7 +36,6 @@ const RING_TEMPLATES = {
 // ─── Read-only molecule renderer (used in View modal) ────────────────────────
 
 function MoleculeView({ atoms, bonds, width = 200, height = 200 }) {
-  const atomRadius = (lbl) => (lbl && lbl.length > 1 ? 18 : ATOM_RADIUS);
   return (
     <svg width={width} height={height} viewBox="0 0 400 400"
       style={{ display: "block", background: "#fff", border: "1px solid #ccc", borderRadius: 6 }}>
@@ -75,9 +74,9 @@ function MoleculeView({ atoms, bonds, width = 200, height = 200 }) {
         const isC = !atom.label || atom.label === "C";
         return (
           <g key={atom.id}>
-            {!isC && <circle cx={atom.x} cy={atom.y} r={atomRadius(atom.label)} fill="#5f021f" />}
+            {!isC && <circle cx={atom.x} cy={atom.y} r={atomRadius(atom.label)} fill={atomFill(atom.label)} stroke="#222" strokeWidth="1" />}
             {!isC && (
-              <text x={atom.x} y={atom.y + 4} textAnchor="middle" fontSize="12" fill="#fff">
+              <text x={atom.x} y={atom.y + 4} textAnchor="middle" fontSize="12" fill={atomTextColor(atom.label)}>
                 {atom.label}
               </text>
             )}
@@ -326,7 +325,6 @@ function CanvasEditor({ atoms, setAtoms, bonds, setBonds, label, initialAtoms, i
     setSelectedBond(bondId);
   };
 
-  const atomRadius = (lbl) => (lbl && lbl.length > 1 ? 18 : ATOM_RADIUS);
 
   return (
     <div>
@@ -423,12 +421,14 @@ function CanvasEditor({ atoms, setAtoms, bonds, setBonds, label, initialAtoms, i
             {(!isC || atom.id === selectedAtom) && (
               <circle
                 cx={atom.x} cy={atom.y} r={atomRadius(atom.label)}
-                fill={atom.id === selectedAtom ? "red" : "#5f021f"}
+                fill={atom.id === selectedAtom ? "red" : atomFill(atom.label)}
+                stroke="#222"
+                strokeWidth="1"
                 pointerEvents="none"
               />
             )}
             {!isC && (
-              <text x={atom.x} y={atom.y + 4} textAnchor="middle" fontSize="12" fill="#fff" pointerEvents="none">
+              <text x={atom.x} y={atom.y + 4} textAnchor="middle" fontSize="12" fill={atomTextColor(atom.label)} pointerEvents="none">
                 {atom.label}
               </text>
             )}

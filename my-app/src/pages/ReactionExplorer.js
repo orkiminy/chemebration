@@ -2,13 +2,13 @@ import React, { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import SetCanvas from "../setCanvas";
 import { findRule, applyRule } from "../engine/reactionRules";
+import { atomFill, atomTextColor, atomRadius } from "../engine/atomColors";
 import "../App.css";
 
 const WIDTH = 480;
 const HEIGHT = 480;
 const GRID_SPACING = 40;
 const ROW_H = GRID_SPACING * Math.sin(Math.PI / 3);
-const ATOM_RADIUS = 12;
 const SNAP_RADIUS = 10;
 
 const RING_TEMPLATES = {
@@ -389,7 +389,6 @@ export default function ReactionExplorer() {
     setComputing(false);
   };
 
-  const atomRadius = (label) => (label && label.length > 1 ? 18 : ATOM_RADIUS);
 
   return (
     <div className="exercise-page">
@@ -514,12 +513,14 @@ export default function ReactionExplorer() {
                         cx={atom.x}
                         cy={atom.y}
                         r={atomRadius(atom.label)}
-                        fill={atom.id === selectedAtom ? "red" : "#5f021f"}
+                        fill={atom.id === selectedAtom ? "red" : atomFill(atom.label)}
+                        stroke="#222"
+                        strokeWidth="1"
                         pointerEvents="none"
                       />
                     )}
                     {!isC && (
-                      <text x={atom.x} y={atom.y + 4} textAnchor="middle" fontSize="12" fill="#fff" pointerEvents="none">
+                      <text x={atom.x} y={atom.y + 4} textAnchor="middle" fontSize="12" fill={atomTextColor(atom.label)} pointerEvents="none">
                         {atom.label}
                       </text>
                     )}
@@ -888,8 +889,8 @@ export default function ReactionExplorer() {
                           }
                         }}
                       />
-                      {(!isC) && <circle cx={atom.x} cy={atom.y} r={r} fill="#5f021f" />}
-                      {(!isC) && <text x={atom.x} y={atom.y + 4} textAnchor="middle" fontSize="12" fill="#fff" pointerEvents="none">{atom.label}</text>}
+                      {(!isC) && <circle cx={atom.x} cy={atom.y} r={r} fill={atomFill(atom.label)} stroke="#222" strokeWidth="1" />}
+                      {(!isC) && <text x={atom.x} y={atom.y + 4} textAnchor="middle" fontSize="12" fill={atomTextColor(atom.label)} pointerEvents="none">{atom.label}</text>}
                     </g>
                   );
                 })}

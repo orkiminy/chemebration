@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from "react";
+import { atomFill, atomTextColor, atomRadius } from "../engine/atomColors";
 import { Link } from "react-router-dom";
 import { reactionLevels } from "../data/reactionLevels.js";
 
 const WIDTH = 400;
 const HEIGHT = 400;
 const GRID_SPACING = 40;
-const ATOM_RADIUS = 12;
 
 /* Build grid points for centering */
 function buildGrid() {
@@ -137,8 +137,10 @@ function MoleculeCanvas({ atoms, bonds, label, snapToGrid = true }) {
               <circle
                 cx={atom.x}
                 cy={atom.y}
-                r={atom.label && atom.label.length > 1 ? 18 : ATOM_RADIUS}
-                fill="#5f021f"
+                r={atomRadius(atom.label)}
+                fill={atomFill(atom.label)}
+                stroke="#222"
+                strokeWidth="1"
               />
             )}
             {!isC && (
@@ -147,7 +149,7 @@ function MoleculeCanvas({ atoms, bonds, label, snapToGrid = true }) {
                 y={atom.y + 4}
                 textAnchor="middle"
                 fontSize="12"
-                fill="#fff"
+                fill={atomTextColor(atom.label)}
                 fontWeight="bold"
               >
                 {atom.label}

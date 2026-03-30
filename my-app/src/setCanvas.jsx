@@ -1,10 +1,10 @@
 import { useMemo } from "react";
+import { atomFill, atomTextColor, atomRadius } from "./engine/atomColors";
 
 export default function SetCanvas({ atoms = [], bonds = [] }) {
   const WIDTH = 480;
   const HEIGHT = 480;
   const GRID_SPACING = 40;
-  const ATOM_RADIUS = 12;
 
   /* ---------- GRID ---------- */
   const gridPoints = useMemo(() => {
@@ -118,8 +118,10 @@ export default function SetCanvas({ atoms = [], bonds = [] }) {
                 <circle
                   cx={atom.x}
                   cy={atom.y}
-                  r={ATOM_RADIUS}
-                  fill="#5f021f"
+                  r={atomRadius(atom.label)}
+                  fill={atomFill(atom.label)}
+                  stroke="#222"
+                  strokeWidth="1"
                 />
               )}
               {!isC && (
@@ -128,7 +130,7 @@ export default function SetCanvas({ atoms = [], bonds = [] }) {
                   y={atom.y + 4}
                   textAnchor="middle"
                   fontSize="12"
-                  fill="#fff"
+                  fill={atomTextColor(atom.label)}
                 >
                   {atom.label}
                 </text>

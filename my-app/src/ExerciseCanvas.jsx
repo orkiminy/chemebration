@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { atomFill, atomTextColor, atomRadius } from "./engine/atomColors";
 import SetCanvas from "./setCanvas";
 import ReactionArrow from "./addingReaction";
 import { reactionLevels } from "./data/reactionLevels.js";
@@ -40,7 +41,6 @@ export default function ExerciseCanvas({ exerciseType = "OneStepReaction" }) {
   const WIDTH = 480;
   const HEIGHT = 480;
   const GRID_SPACING = 40;
-  const ATOM_RADIUS = 12;
   const SNAP_RADIUS = 10;
 
   /* ---------- STATE ---------- */
@@ -454,7 +454,6 @@ const { user } = useAuth();
   };
 
   /* ---------- HELPERS ---------- */
-  const atomRadius = (label) => (label && label.length > 1 ? 18 : ATOM_RADIUS);
 
   /* ---------- RENDER ---------- */
   return (
@@ -640,7 +639,9 @@ const { user } = useAuth();
                         cx={atom.x}
                         cy={atom.y}
                         r={atomRadius(atom.label)}
-                        fill={atom.id === selectedAtom ? "red" : "#5f021f"}
+                        fill={atom.id === selectedAtom ? "red" : atomFill(atom.label)}
+                        stroke="#222"
+                        strokeWidth="1"
                         pointerEvents="none"
                       />
                     )}
@@ -650,7 +651,7 @@ const { user } = useAuth();
                         y={atom.y + 4}
                         textAnchor="middle"
                         fontSize="12"
-                        fill="#fff"
+                        fill={atomTextColor(atom.label)}
                         pointerEvents="none"
                       >
                         {atom.label}
