@@ -311,7 +311,7 @@ function applyDelta(molAtoms, molBonds, delta, match, rGroupCaptures, addedAtomP
     const groupIds = rGroupCaptures?.get(pid);
     if (groupIds) {
       const replacementR = delta.addedAtoms.find(
-        a => { const l = (a.label || 'C').trim(); return (l === 'R' || l === "R'") && !rSkip.has(a.id); }
+        a => { const l = (a.label || 'C').trim(); return (l === 'R' || l === "R'" || l === "R''") && !rSkip.has(a.id); }
       );
       if (replacementR) {
         rSkip.set(replacementR.id, mid);
@@ -672,11 +672,23 @@ export async function updateRule(ruleId, ruleData) {
 
 const SUBSCRIPT_TO_NORMAL = {'₀':'0','₁':'1','₂':'2','₃':'3','₄':'4','₅':'5','₆':'6','₇':'7','₈':'8','₉':'9'};
 
+// Canonical aliases so common abbreviations all resolve to one form.
+const REAGENT_ALIASES = {
+  pyr: 'pyridine',
+  pyridine: 'pyridine',
+};
+
 function normalizeReagentForMatch(str) {
-  return str
+  // 1. Lower-case, convert subscript digits, split on comma/space
+  const tokens = str
     .toLowerCase()
     .replace(/[₀₁₂₃₄₅₆₇₈₉]/g, c => SUBSCRIPT_TO_NORMAL[c])
-    .replace(/[\s,]+/g, '');
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .map(t => REAGENT_ALIASES[t] || t);
+  // 2. Sort so "KMnO4, H2O" and "H2O, KMnO4" produce the same key
+  tokens.sort();
+  return tokens.join('');
 }
 
 const SUBSCRIPT_MAP = {'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉'};

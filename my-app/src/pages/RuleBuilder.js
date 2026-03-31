@@ -489,6 +489,7 @@ function CanvasEditor({ atoms, setAtoms, bonds, setBonds, label, initialAtoms, i
               <option value="Na">Na</option>
               <option value="R">R</option>
               <option value="R'">R'</option>
+              <option value="R''">R''</option>
             </select>
             <select className="toolbar-select" value={bondStyle} onChange={(e) => setBondStyle(e.target.value)}>
               <option value="solid">Solid</option>

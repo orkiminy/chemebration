@@ -712,6 +712,9 @@ const { user } = useAuth();
                     <option value="P">P</option>
                     <option value="OH">OH</option>
                     <option value="Ph">Ph</option>
+                    <option value="R">R</option>
+                    <option value="R'">R'</option>
+                    <option value="R''">R''</option>
                   </select>
                   <select className="toolbar-select" value={bondStyle} onChange={(e) => setBondStyle(e.target.value)}>
                     <option value="solid">Solid (Line)</option>

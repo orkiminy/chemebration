@@ -581,6 +581,7 @@ export default function ReactionExplorer() {
                     <option value="X">X (any halogen)</option>
                     <option value="R">R</option>
                     <option value="R'">R'</option>
+                    <option value="R''">R''</option>
                   </select>
                   <select className="toolbar-select" value={bondStyle} onChange={(e) => setBondStyle(e.target.value)}>
                     <option value="solid">Solid (Line)</option>
@@ -691,7 +692,7 @@ export default function ReactionExplorer() {
                       <SetCanvas atoms={final.atoms} bonds={final.bonds} />
                     </div>
                     {final.explanation && (
-                      <div style={{ fontSize: "0.85rem", color: "#555", fontStyle: "italic", marginTop: "6px" }}>
+                      <div style={{ fontSize: "1.05rem", color: "#555", fontStyle: "italic", marginTop: "6px" }}>
                         {final.explanation}
                       </div>
                     )}
@@ -780,6 +781,8 @@ export default function ReactionExplorer() {
                   <option value="I">I</option>
                   <option value="OH">OH</option>
                   <option value="R">R</option>
+                  <option value="R'">R'</option>
+                  <option value="R''">R''</option>
                 </select>
                 <select className="toolbar-select" value={fbBondStyle} onChange={e => setFbBondStyle(e.target.value)}>
                   <option value="solid">Solid</option>

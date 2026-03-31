@@ -21,7 +21,7 @@ const AROMATIC_ORDER = 1.5; // sentinel set by normalizeBenzeneRings(); matches 
 function labelsMatch(patLabel, molLabel) {
   const pl = (patLabel || 'C').trim();
   const ml = (molLabel || 'C').trim();
-  if (pl === 'R' || pl === "R'") return true;
+  if (pl === 'R' || pl === "R'" || pl === "R''") return true;
   if (pl === 'X') return HALOGENS.includes(ml);
   if (pl === 'C') return ml === 'C' || ml === '';
   // OH single-atom is equivalent to O (the H is implicit / drawn separately)
@@ -52,7 +52,7 @@ function computeRGroupCaptures(p2m, patternAtoms, molAdj) {
 
   for (const patAtom of patternAtoms) {
     const label = (patAtom.label || 'C').trim();
-    if (label !== 'R' && label !== "R'") continue;
+    if (label !== 'R' && label !== "R'" && label !== "R''") continue;
 
     const rootMolId = p2m.get(patAtom.id);
     if (rootMolId === undefined) continue;

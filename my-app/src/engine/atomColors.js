@@ -28,6 +28,9 @@ const ATOM_FILL = {
   Cl: '#1DC01D',
   Br: '#8B2500',
   I:  '#6600CC',
+  R:  '#FFFFFF',
+  "R'":  '#FFFFFF',
+  "R''": '#FFFFFF',
 };
 
 /**
@@ -45,5 +48,6 @@ export function atomFill(label) {
  */
 export function atomTextColor(label) {
   const l = (label || 'C').trim();
-  return l === 'H' ? '#222222' : '#ffffff';
+  if (l === 'H' || l === 'R' || l === "R'" || l === "R''") return '#222222';
+  return '#ffffff';
 }
