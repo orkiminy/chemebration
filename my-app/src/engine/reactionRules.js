@@ -143,6 +143,66 @@ function xWildcardMatches(storedReagent, inputReagent) {
   });
 }
 
+/**
+ * Extract what the user typed in place of R in the reagent string.
+ * e.g. stored "RCOCl, AlCl3", input "ClCOCl, AlCl3" → "Cl"
+ */
+function extractResolvedR(storedReagent, inputReagent) {
+  const norm = s => s.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, c => SUBSCRIPT_TO_NORMAL[c]);
+  const storedTokens = norm(storedReagent).split(/[\s,]+/).filter(Boolean);
+  const inputTokens  = norm(inputReagent).split(/[\s,]+/).filter(Boolean);
+
+  for (const st of storedTokens) {
+    const m = st.match(/^R['']*(?=[A-Z(])/);
+    if (!m) continue;
+    const suffix = st.slice(m[0].length).toLowerCase();
+    for (const it of inputTokens) {
+      if (it.toLowerCase().endsWith(suffix) && it.toLowerCase() !== st.toLowerCase()) {
+        return it.slice(0, it.length - suffix.length);
+      }
+    }
+  }
+  return null;
+}
+
+function rWildcardMatches(storedReagent, inputReagent) {
+  const norm = s => s.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, c => SUBSCRIPT_TO_NORMAL[c]);
+  const storedTokens = norm(storedReagent).split(/[\s,]+/).filter(Boolean);
+  const inputTokens  = norm(inputReagent).split(/[\s,]+/).filter(Boolean);
+
+  function rSuffix(token) {
+    const m = token.match(/^R['']*(?=[A-Z(])/);
+    return m ? token.slice(m[0].length).toLowerCase() : null;
+  }
+
+  if (!storedTokens.some(t => rSuffix(t) !== null)) return false;
+  if (storedTokens.length !== inputTokens.length) return false;
+
+  const inputLower = inputTokens.map(t => t.toLowerCase());
+  const used = new Set();
+
+  for (const st of storedTokens) {
+    const suffix = rSuffix(st);
+    let matched = false;
+    if (suffix !== null) {
+      for (let i = 0; i < inputLower.length; i++) {
+        if (!used.has(i) && inputLower[i].endsWith(suffix)) {
+          used.add(i); matched = true; break;
+        }
+      }
+    } else {
+      const stLow = st.toLowerCase();
+      for (let i = 0; i < inputLower.length; i++) {
+        if (!used.has(i) && inputLower[i] === stLow) {
+          used.add(i); matched = true; break;
+        }
+      }
+    }
+    if (!matched) return false;
+  }
+  return true;
+}
+
 // ─── BENZENE RING NORMALIZATION ───────────────────────────────────────────────
 // Detects 6-membered all-carbon rings with strictly alternating single/double
 // bonds and normalises all their intra-ring bonds to AROMATIC_ORDER (1.5).
@@ -482,7 +542,12 @@ export function extractRule(leftAtoms, leftBonds, rightAtoms, rightBonds) {
  */
 export function applyRule(molAtoms, molBonds, rule) {
   const resolvedX = rule.resolvedX || null;
-  const resolveLabel = lbl => (lbl === 'X' && resolvedX) ? resolvedX : lbl;
+  const resolvedR = rule.resolvedR || null;
+  const resolveLabel = lbl => {
+    if (lbl === 'X' && resolvedX) return resolvedX;
+    if ((lbl === 'R' || lbl === "R'" || lbl === "R''") && resolvedR) return resolvedR;
+    return lbl;
+  };
 
   // If rule predates the delta system, fall back to stored example
   if (!rule.delta || !rule.patternAtoms) {
@@ -718,6 +783,12 @@ export async function findRule(reagentStr) {
 
   const wildcard = rules.find(r => xWildcardMatches(r.reagent || '', reagentStr));
   if (wildcard) return { ...wildcard, resolvedX: extractHalogen(reagentStr) };
+
+  const rMatch = rules.find(r => rWildcardMatches(r.reagent || '', reagentStr));
+  if (rMatch) {
+    const resolvedR = extractResolvedR(rMatch.reagent || '', reagentStr);
+    return { ...rMatch, resolvedX: extractHalogen(reagentStr), resolvedR };
+  }
 
   return null;
 }
