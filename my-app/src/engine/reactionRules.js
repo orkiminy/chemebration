@@ -486,10 +486,13 @@ function findAromaticRings(atoms, bonds) {
             if (!edge) { orders.push(null); break; }
             orders.push(edge.order || 1);
           }
+          // Detect aromatic: 6 carbons with 2+ double bonds. Lenient enough
+          // to catch old rules with non-standard alternation, strict enough
+          // to exclude cyclohexane (0 doubles) and cyclohexene (1 double).
           const isAromatic =
             orders.length === 6 &&
-            orders.every(o => o === 1 || o === 2) &&
-            orders.every((o, i) => o !== orders[(i + 1) % 6]);
+            orders.every(o => o === 1 || o === 2 || o === 1.5) &&
+            orders.filter(o => o === 2 || o === 1.5).length >= 2;
           if (!isAromatic) continue;
 
           const key = [...path].sort((a, b) => a - b).join(',');
@@ -509,9 +512,16 @@ function findAromaticRings(atoms, bonds) {
   return rings;
 }
 
-function normalizeBenzeneRings(atoms, bonds) {
+function normalizeBenzeneRings(atoms, bonds, label) {
   const rings = findAromaticRings(atoms, bonds);
-  if (rings.length === 0) return bonds;
+  console.log(`[normBenzene:${label || '?'}] ${atoms.length} atoms, ${bonds.length} bonds → ${rings.length} aromatic ring(s) found`);
+  if (rings.length === 0) {
+    // Log bond orders so we can see why no ring was detected
+    const carbonIds = new Set(atoms.filter(a => { const l = (a.label||'C').trim(); return l==='C'||l===''; }).map(a=>a.id));
+    const ringBonds = bonds.filter(b => carbonIds.has(b.from) && carbonIds.has(b.to));
+    console.log(`[normBenzene:${label}] carbon-carbon bond orders:`, ringBonds.map(b => `${b.from}→${b.to}:${b.order||1}`));
+    return bonds;
+  }
 
   const aromaticBondIds = new Set();
   for (const ring of rings) {
@@ -809,7 +819,7 @@ export function applyRule(molAtoms, molBonds, rule) {
   }
 
   // Resolve X labels in the pattern so matching works for HBr → Br, etc.
-  const patternAtoms = rule.patternAtoms.map(a => ({ ...a, label: resolveLabel(a.label || 'C') }));
+  let patternAtoms = rule.patternAtoms.map(a => ({ ...a, label: resolveLabel(a.label || 'C') }));
 
   // Resolve labels in the delta's added atoms.
   // Also attach _removedLabels so applyDelta can pair R↔R, R'↔R' (not R↔R').
@@ -824,14 +834,36 @@ export function applyRule(molAtoms, molBonds, rule) {
     _removedLabels: removedLabels,
   };
 
+  // Strip stray (unbonded) atoms from the pattern — old rules may have accidental
+  // floating atoms that inflate the pattern size and prevent matching.
+  const patBondedIds = new Set();
+  rule.patternBonds.forEach(b => { patBondedIds.add(b.from); patBondedIds.add(b.to); });
+  if (patBondedIds.size > 0) {
+    const strays = patternAtoms.filter(a => !patBondedIds.has(a.id));
+    if (strays.length > 0) {
+      console.warn(`[applyRule] stripped ${strays.length} stray pattern atom(s):`, strays.map(a => `${a.id}(${a.label||'C'})`));
+      patternAtoms = patternAtoms.filter(a => patBondedIds.has(a.id));
+    }
+  }
+
   // Normalize benzene rings (alternating 1/2 → 1.5) in BOTH pattern and molecule
   // before matching so position-shifted benzene rings always match.
   // Original molBonds is preserved below for applyDelta.
-  const patternBondsNorm = normalizeBenzeneRings(patternAtoms, rule.patternBonds);
-  const molBondsNorm     = normalizeBenzeneRings(molAtoms, molBonds);
+  const patternBondsNorm = normalizeBenzeneRings(patternAtoms, rule.patternBonds, 'pattern');
+  const molBondsNorm     = normalizeBenzeneRings(molAtoms, molBonds, 'molecule');
 
   // Find where the pattern appears in the student's molecule
+  console.log(`[applyRule] PATTERN: ${patternAtoms.length} atoms, ${patternBondsNorm.length} bonds`);
+  console.log(`[applyRule]   pattern labels:`, patternAtoms.map(a => `${a.id}(${(a.label||'C').trim()})`).join(', '));
+  console.log(`[applyRule]   pattern bonds:`, patternBondsNorm.map(b => `${b.from}→${b.to}:ord${b.order}`).join(', '));
+  console.log(`[applyRule] MOLECULE: ${molAtoms.length} atoms, ${molBondsNorm.length} bonds`);
+  console.log(`[applyRule]   molecule labels:`, molAtoms.map(a => `${a.id}(${(a.label||'C').trim()})`).join(', '));
+  console.log(`[applyRule]   molecule bonds:`, molBondsNorm.map(b => `${b.from}→${b.to}:ord${b.order}`).join(', '));
+  if (patternAtoms.length > molAtoms.length) {
+    console.warn(`[applyRule] ⚠️ PATTERN HAS MORE ATOMS (${patternAtoms.length}) THAN MOLECULE (${molAtoms.length}) — match is impossible!`);
+  }
   const matches = findMatches(patternAtoms, patternBondsNorm, molAtoms, molBondsNorm);
+  console.log(`[applyRule] findMatches returned ${matches.length} match(es)`);
 
   if (matches.length === 0) {
     // Pattern not found — fall back to stored example with a warning
