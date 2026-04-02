@@ -13,12 +13,13 @@ import { useAuth } from './contexts/AuthContext';
 
 const ROW_H = 40 * Math.sin(Math.PI / 3);
 
+// Pointy-top hexagon (vertex at top), grid-aligned, double bonds on left
 const RING_TEMPLATES = {
   benzene: {
     offsets: [
-      { dx: 0, dy: 0 }, { dx: 40, dy: 0 },
-      { dx: 60, dy: ROW_H }, { dx: 40, dy: 2 * ROW_H },
-      { dx: 0, dy: 2 * ROW_H }, { dx: -20, dy: ROW_H },
+      { dx: 0,   dy: 0 },              { dx: -60, dy: ROW_H },
+      { dx: -60, dy: 3 * ROW_H },      { dx: 0,   dy: 4 * ROW_H },
+      { dx: 60,  dy: 3 * ROW_H },      { dx: 60,  dy: ROW_H },
     ],
     bonds: [
       { a: 0, b: 1, order: 2 }, { a: 1, b: 2, order: 1 },
@@ -28,9 +29,9 @@ const RING_TEMPLATES = {
   },
   cyclohexane: {
     offsets: [
-      { dx: 0, dy: 0 }, { dx: 40, dy: 0 },
-      { dx: 60, dy: ROW_H }, { dx: 40, dy: 2 * ROW_H },
-      { dx: 0, dy: 2 * ROW_H }, { dx: -20, dy: ROW_H },
+      { dx: 0,   dy: 0 },              { dx: -60, dy: ROW_H },
+      { dx: -60, dy: 3 * ROW_H },      { dx: 0,   dy: 4 * ROW_H },
+      { dx: 60,  dy: 3 * ROW_H },      { dx: 60,  dy: ROW_H },
     ],
     bonds: Array.from({ length: 6 }, (_, i) => ({ a: i, b: (i + 1) % 6, order: 1 })),
   },
