@@ -144,21 +144,22 @@ function xWildcardMatches(storedReagent, inputReagent) {
 }
 
 /**
- * Extract what the user typed in place of R in the reagent string.
- * e.g. stored "RCOCl, AlCl3", input "ClCOCl, AlCl3" → "Cl"
+ * Extract what the user typed in place of R/R'/R'' and which variant was replaced.
+ * e.g. stored "R'MgBr, ether", input "ClMgBr, ether" → { group: "Cl", variant: "R'" }
  */
 function extractResolvedR(storedReagent, inputReagent) {
-  const norm = s => s.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, c => SUBSCRIPT_TO_NORMAL[c]);
-  const storedTokens = norm(storedReagent).split(/[\s,]+/).filter(Boolean);
-  const inputTokens  = norm(inputReagent).split(/[\s,]+/).filter(Boolean);
+  const norm = s => normalizePrimes(s).replace(/[₀₁₂₃₄₅₆₇₈₉]/g, c => SUBSCRIPT_TO_NORMAL[c]);
+  const storedTokens = norm(storedReagent).split(/[\s,/]+/).filter(Boolean);
+  const inputTokens  = norm(inputReagent).split(/[\s,/]+/).filter(Boolean);
 
   for (const st of storedTokens) {
-    const m = st.match(/^R['']*(?=[A-Z(])/);
+    const m = st.match(/^R[']*(?=[A-Z(])/);
     if (!m) continue;
-    const suffix = st.slice(m[0].length).toLowerCase();
+    const variant = m[0]; // "R", "R'", or "R''"
+    const suffix = st.slice(variant.length).toLowerCase();
     for (const it of inputTokens) {
       if (it.toLowerCase().endsWith(suffix) && it.toLowerCase() !== st.toLowerCase()) {
-        return it.slice(0, it.length - suffix.length);
+        return { group: it.slice(0, it.length - suffix.length), variant };
       }
     }
   }
@@ -166,12 +167,12 @@ function extractResolvedR(storedReagent, inputReagent) {
 }
 
 function rWildcardMatches(storedReagent, inputReagent) {
-  const norm = s => s.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, c => SUBSCRIPT_TO_NORMAL[c]);
-  const storedTokens = norm(storedReagent).split(/[\s,]+/).filter(Boolean);
-  const inputTokens  = norm(inputReagent).split(/[\s,]+/).filter(Boolean);
+  const norm = s => normalizePrimes(s).replace(/[₀₁₂₃₄₅₆₇₈₉]/g, c => SUBSCRIPT_TO_NORMAL[c]);
+  const storedTokens = norm(storedReagent).split(/[\s,/]+/).filter(Boolean);
+  const inputTokens  = norm(inputReagent).split(/[\s,/]+/).filter(Boolean);
 
   function rSuffix(token) {
-    const m = token.match(/^R['']*(?=[A-Z(])/);
+    const m = token.match(/^R[']*(?=[A-Z(])/);
     return m ? token.slice(m[0].length).toLowerCase() : null;
   }
 
@@ -367,11 +368,12 @@ function applyDelta(molAtoms, molBonds, delta, match, rGroupCaptures, addedAtomP
     const mid = match.get(pid);
     if (mid === undefined) return;
 
-    // Case 1: R wildcard with captured group
+    // Case 1: R wildcard with captured group — only pair same label (R↔R, R'↔R', R''↔R'').
     const groupIds = rGroupCaptures?.get(pid);
     if (groupIds) {
+      const pidLabel = (delta._removedLabels || {})[pid] || 'R';
       const replacementR = delta.addedAtoms.find(
-        a => { const l = (a.label || 'C').trim(); return (l === 'R' || l === "R'" || l === "R''") && !rSkip.has(a.id); }
+        a => { const l = (a.label || 'C').trim(); return l === pidLabel && !rSkip.has(a.id); }
       );
       if (replacementR) {
         rSkip.set(replacementR.id, mid);
@@ -543,9 +545,10 @@ export function extractRule(leftAtoms, leftBonds, rightAtoms, rightBonds) {
 export function applyRule(molAtoms, molBonds, rule) {
   const resolvedX = rule.resolvedX || null;
   const resolvedR = rule.resolvedR || null;
+  const resolvedRVariant = rule.resolvedRVariant || null;
   const resolveLabel = lbl => {
     if (lbl === 'X' && resolvedX) return resolvedX;
-    if ((lbl === 'R' || lbl === "R'" || lbl === "R''") && resolvedR) return resolvedR;
+    if (resolvedR && resolvedRVariant && normalizePrimes(lbl.trim()) === resolvedRVariant) return resolvedR;
     return lbl;
   };
 
@@ -564,10 +567,17 @@ export function applyRule(molAtoms, molBonds, rule) {
   // Resolve X labels in the pattern so matching works for HBr → Br, etc.
   const patternAtoms = rule.patternAtoms.map(a => ({ ...a, label: resolveLabel(a.label || 'C') }));
 
-  // Resolve X labels in the delta's added atoms
+  // Resolve labels in the delta's added atoms.
+  // Also attach _removedLabels so applyDelta can pair R↔R, R'↔R' (not R↔R').
+  const removedLabels = {};
+  (rule.delta.removedAtomIds || []).forEach(pid => {
+    const pa = rule.patternAtoms.find(a => a.id === pid);
+    if (pa) removedLabels[pid] = (pa.label || 'C').trim();
+  });
   const delta = {
     ...rule.delta,
     addedAtoms: (rule.delta.addedAtoms || []).map(a => ({ ...a, label: resolveLabel(a.label || 'C') })),
+    _removedLabels: removedLabels,
   };
 
   // Normalize benzene rings (alternating 1/2 → 1.5) in BOTH pattern and molecule
@@ -737,6 +747,14 @@ export async function updateRule(ruleId, ruleData) {
 
 const SUBSCRIPT_TO_NORMAL = {'₀':'0','₁':'1','₂':'2','₃':'3','₄':'4','₅':'5','₆':'6','₇':'7','₈':'8','₉':'9'};
 
+// Normalize all prime/quote variants to a plain apostrophe and strip superscript ⁺⁻
+function normalizePrimes(s) {
+  return s
+    .replace(/[′'ʹʼ`]/g, "'")
+    .replace(/[⁺]/g, '+')
+    .replace(/[⁻]/g, '-');
+}
+
 // Canonical aliases so common abbreviations all resolve to one form.
 const REAGENT_ALIASES = {
   pyr: 'pyridine',
@@ -744,14 +762,12 @@ const REAGENT_ALIASES = {
 };
 
 function normalizeReagentForMatch(str) {
-  // 1. Lower-case, convert subscript digits, split on comma/space
-  const tokens = str
+  const tokens = normalizePrimes(str)
     .toLowerCase()
     .replace(/[₀₁₂₃₄₅₆₇₈₉]/g, c => SUBSCRIPT_TO_NORMAL[c])
     .split(/[\s,]+/)
     .filter(Boolean)
     .map(t => REAGENT_ALIASES[t] || t);
-  // 2. Sort so "KMnO4, H2O" and "H2O, KMnO4" produce the same key
   tokens.sort();
   return tokens.join('');
 }
@@ -775,20 +791,30 @@ export async function findRule(reagentStr) {
   const rules = await loadRules();
   const lower = normalizeReagentForMatch(reagentStr);
 
-  const exact = rules.find(r => {
-    const rLower = normalizeReagentForMatch(r.reagent || '');
-    return rLower === lower || lower.includes(rLower) || rLower.includes(lower);
-  });
-  if (exact) return { ...exact, resolvedX: extractHalogen(reagentStr) };
-
-  const wildcard = rules.find(r => xWildcardMatches(r.reagent || '', reagentStr));
-  if (wildcard) return { ...wildcard, resolvedX: extractHalogen(reagentStr) };
-
-  const rMatch = rules.find(r => rWildcardMatches(r.reagent || '', reagentStr));
-  if (rMatch) {
-    const resolvedR = extractResolvedR(rMatch.reagent || '', reagentStr);
-    return { ...rMatch, resolvedX: extractHalogen(reagentStr), resolvedR };
+  function buildResult(rule) {
+    const resolved = extractResolvedR(rule.reagent || '', reagentStr);
+    return { ...rule, resolvedX: extractHalogen(reagentStr),
+             resolvedR: resolved?.group || null, resolvedRVariant: resolved?.variant || null };
   }
+
+  // 1. Exact equality (strictest — no false positives)
+  const exactEqual = rules.find(r => normalizeReagentForMatch(r.reagent || '') === lower);
+  if (exactEqual) return buildResult(exactEqual);
+
+  // 2. R-wildcard (R/R'/R'' prefix — e.g. "ClMgBr" matches stored "R'MgBr")
+  const rMatch = rules.find(r => rWildcardMatches(r.reagent || '', reagentStr));
+  if (rMatch) return buildResult(rMatch);
+
+  // 3. X-wildcard (halogen substitution — e.g. "HBr" matches stored "HX")
+  const xMatch = rules.find(r => xWildcardMatches(r.reagent || '', reagentStr));
+  if (xMatch) return buildResult(xMatch);
+
+  // 4. Substring fallback (loosest — "KMnO4" matches "KMnO4, H2O")
+  const substring = rules.find(r => {
+    const rLower = normalizeReagentForMatch(r.reagent || '');
+    return lower.includes(rLower) || rLower.includes(lower);
+  });
+  if (substring) return buildResult(substring);
 
   return null;
 }

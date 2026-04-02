@@ -333,6 +333,29 @@ export default function ReactionExplorer() {
     const steps = [];
     const debugSteps = [];
 
+    // If multiple steps all belong to one rule (e.g. "R'MgBr, ether" + "H3O+"
+    // → stored as "R′MgBr, ether / H₃O⁺"), combine and apply once.
+    if (filledSteps.length > 1) {
+      const combined = filledSteps.join(', ');
+      const combinedRule = await findRule(combined);
+      if (combinedRule) {
+        const result = applyRule(currentAtoms, currentBonds, combinedRule);
+        if (result) {
+          const product = result.products[0];
+          steps.push({ reagent: combined, atoms: product.atoms, bonds: product.bonds,
+            explanation: result.explanation, noMatch: result.noMatch || false });
+          debugSteps.push({ reagent: combined, ruleName: combinedRule.name || combinedRule.reagent,
+            noMatch: result.noMatch || false, inputAtoms: currentAtoms, inputBonds: currentBonds,
+            mapping: result._debug?.mapping, rGroupCaptures: result._debug?.rGroupCaptures,
+            patternAtoms: result._debug?.patternAtoms, delta: combinedRule.delta });
+          setProductSteps(steps);
+          setDebugInfo(debugSteps);
+          setComputing(false);
+          return;
+        }
+      }
+    }
+
     for (const step of filledSteps) {
       const rule = await findRule(step);
       if (!rule) {
