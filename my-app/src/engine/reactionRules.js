@@ -143,6 +143,250 @@ function xWildcardMatches(storedReagent, inputReagent) {
   });
 }
 
+// ─── EAS DIRECTING EFFECTS ───────────────────────────────────────────────────
+// Meta-directing groups; everything else defaults to ortho/para.
+// Single-atom labels checked directly:
+const META_DIRECTOR_LABELS = new Set(['NO2', 'CN', 'CF3']);
+// For multi-atom substituents, we check the root atom + its neighbors:
+//   C bonded to =O → carbonyl (COR, COOH, CHO) → meta
+//   S bonded to =O → sulfonyl (SO3R, SO3H) → meta
+//   N with 3+ bonds and positive charge context (NR3+) → meta
+function isMetaDirector(rootLabel, rootId, molAtoms, molBonds) {
+  const l = (rootLabel || 'C').trim();
+  if (META_DIRECTOR_LABELS.has(l)) return true;
+  if (l === 'C') {
+    // Carbon bonded to a double-bonded O → carbonyl → meta (COR, COOH, CHO)
+    const hasDoubleBondO = molBonds.some(b => {
+      const neighborId = b.from === rootId ? b.to : b.to === rootId ? b.from : null;
+      if (!neighborId || (b.order || 1) < 2) return false;
+      const neighbor = molAtoms.find(a => a.id === neighborId);
+      return neighbor && (neighbor.label || 'C').trim() === 'O';
+    });
+    if (hasDoubleBondO) return true;
+    // Carbon bonded to 3 fluorines → CF3 → meta
+    const fCount = molBonds.filter(b => {
+      const neighborId = b.from === rootId ? b.to : b.to === rootId ? b.from : null;
+      if (!neighborId) return false;
+      const neighbor = molAtoms.find(a => a.id === neighborId);
+      return neighbor && (neighbor.label || 'C').trim() === 'F';
+    }).length;
+    if (fCount >= 3) return true;
+  }
+  // Sulfur bonded to O → sulfonyl → meta (SO3R, SO3H)
+  if (l === 'S') {
+    const hasBondedO = molBonds.some(b => {
+      const neighborId = b.from === rootId ? b.to : b.to === rootId ? b.from : null;
+      if (!neighborId) return false;
+      const neighbor = molAtoms.find(a => a.id === neighborId);
+      return neighbor && (neighbor.label || 'C').trim() === 'O';
+    });
+    if (hasBondedO) return true;
+  }
+  // Nitrogen with 3+ non-H bonds → NR3+ (quaternary ammonium) → meta
+  if (l === 'N') {
+    const nonHBonds = molBonds.filter(b => {
+      const neighborId = b.from === rootId ? b.to : b.to === rootId ? b.from : null;
+      if (!neighborId) return false;
+      const neighbor = molAtoms.find(a => a.id === neighborId);
+      return neighbor && (neighbor.label || 'C').trim() !== 'H';
+    }).length;
+    if (nonHBonds >= 3) return true;
+  }
+  return false;
+}
+
+/**
+ * Walk a benzene ring starting from startId in clockwise order (using geometry).
+ * @param {Set} [ringIds] - if provided, only walk through these atom IDs (avoids
+ *   confusing ring carbons with non-ring carbons like methyl groups).
+ * Returns ordered array of 6 ring atom IDs, or null if no valid ring found.
+ */
+function walkRingCW(atoms, bonds, startId, ringIds) {
+  const posMap = new Map(atoms.map(a => [a.id, { x: a.x, y: a.y }]));
+  const adj = new Map();
+  atoms.forEach(a => adj.set(a.id, []));
+  bonds.forEach(b => {
+    adj.get(b.from)?.push(b.to);
+    adj.get(b.to)?.push(b.from);
+  });
+
+  // Use provided ring IDs if available, otherwise fall back to label-based detection
+  const ringAtomIds = ringIds || new Set(
+    atoms.filter(a => { const l = (a.label || 'C').trim(); return l === 'C' || l === ''; }).map(a => a.id)
+  );
+  if (!ringAtomIds.has(startId)) return null;
+
+  const ringNeighbors = (id) => (adj.get(id) || []).filter(n => ringAtomIds.has(n));
+
+  // Start: pick the neighbor that makes a CW turn from the "up" direction.
+  // We use atan2 angles sorted CW (decreasing angle from positive-x axis).
+  const startPos = posMap.get(startId);
+  if (!startPos) return null;
+
+  const firstNeighbors = ringNeighbors(startId);
+  if (firstNeighbors.length < 2) return null;
+
+  // Sort neighbors by angle from startId, pick one direction consistently
+  const angleFrom = (fromId, toId) => {
+    const f = posMap.get(fromId), t = posMap.get(toId);
+    return Math.atan2(t.y - f.y, t.x - f.x);
+  };
+
+  // Pick the neighbor with the smallest angle (most clockwise from east)
+  const sorted = [...firstNeighbors].sort((a, b) => angleFrom(startId, a) - angleFrom(startId, b));
+  const visited = [startId];
+  const seen = new Set([startId]);
+  let prev = startId;
+  let current = sorted[0]; // first CW neighbor
+  visited.push(current);
+  seen.add(current);
+
+  // Continue walking: at each step, pick the ring neighbor that is NOT prev
+  // and makes the most CW turn (smallest signed angle change)
+  for (let step = 0; step < 4; step++) {
+    const neighbors = ringNeighbors(current).filter(n => !seen.has(n));
+    if (neighbors.length === 0) return null;
+
+    if (neighbors.length === 1) {
+      prev = current;
+      current = neighbors[0];
+    } else {
+      // Pick neighbor with most CW angle relative to the incoming direction
+      const cur = current; // capture for closure
+      const inAngle = angleFrom(cur, prev);
+      const best = neighbors.reduce((a, b) => {
+        const da = ((angleFrom(cur, a) - inAngle + 3 * Math.PI) % (2 * Math.PI));
+        const db = ((angleFrom(cur, b) - inAngle + 3 * Math.PI) % (2 * Math.PI));
+        return da < db ? a : b;
+      });
+      prev = current;
+      current = best;
+    }
+    visited.push(current);
+    seen.add(current);
+  }
+
+  // Verify closure
+  if (!(adj.get(current) || []).includes(startId)) return null;
+  if (visited.length !== 6) return null;
+  return visited;
+}
+
+/**
+ * For an EAS rule with pattern = benzene + R, adjust the delta's added-atom bonds
+ * to place the new group at the correct ring position based on the directing effect.
+ *
+ * Strategy: walk the PATTERN ring to find the rule's default offset for the new group,
+ * then walk the MOLECULE ring the same way. If the substituent's directing effect
+ * requires a different position, re-target the bond.
+ */
+function adjustEASDirecting(mapping, patternAtoms, patternBonds, delta, molAtoms, molBonds, rGroupCaptures) {
+  // 1. Find the R pattern atom
+  const rPatAtom = patternAtoms.find(a => {
+    const l = (a.label || 'C').trim();
+    return l === 'R' || l === "R'" || l === "R''";
+  });
+  if (!rPatAtom) return false;
+
+  const rMolId = mapping.get(rPatAtom.id);
+  if (rMolId === undefined) return false;
+
+  // 2. Find R's attachment ring carbon in the pattern
+  const rBond = patternBonds.find(b => b.from === rPatAtom.id || b.to === rPatAtom.id);
+  if (!rBond) return false;
+  const rAttachPatId = rBond.from === rPatAtom.id ? rBond.to : rBond.from;
+  const rAttachMolId = mapping.get(rAttachPatId);
+  if (rAttachMolId === undefined) return false;
+
+  // 3. Find which ring carbon the NEW group bonds to in addedBonds
+  const ringPatIds = new Set(
+    patternAtoms.filter(a => {
+      const l = (a.label || 'C').trim();
+      return (l === 'C' || l === '') && a.id !== rPatAtom.id;
+    }).map(a => a.id)
+  );
+
+  let newGroupAttachPatId = null;
+  let newGroupBondIdx = null;
+  for (let i = 0; i < (delta.addedBonds || []).length; i++) {
+    const bond = delta.addedBonds[i];
+    const keptEnd = ringPatIds.has(bond.from) ? bond.from : ringPatIds.has(bond.to) ? bond.to : null;
+    if (keptEnd && (!ringPatIds.has(bond.from) || !ringPatIds.has(bond.to))) {
+      newGroupAttachPatId = keptEnd;
+      newGroupBondIdx = i;
+      break;
+    }
+  }
+  if (newGroupAttachPatId === null) return false;
+
+  // 4. Walk the PATTERN ring CW from R-attach to determine the rule's default offset
+  // Pass explicit ring IDs so non-ring carbons (like substituents) aren't followed.
+  const patRingIds = new Set([...ringPatIds, rAttachPatId]);
+  const patRing = walkRingCW(patternAtoms, patternBonds, rAttachPatId, patRingIds);
+  if (!patRing || patRing.length !== 6) return false;
+  const ruleOffset = patRing.indexOf(newGroupAttachPatId);
+  if (ruleOffset < 0) return false;
+  console.log(`[EAS] pattern ring walk:`, patRing, `R-attach=${rAttachPatId}, NO2-attach=${newGroupAttachPatId}, ruleOffset=${ruleOffset}`);
+
+  // 5. Determine directing effect of the matched substituent
+  const rMolAtom = molAtoms.find(a => a.id === rMolId);
+  const rLabel = (rMolAtom?.label || 'C').trim();
+
+  // Plain benzene (R=H or isolated C): no directing needed
+  if (rLabel === 'H') return false;
+  const rGroupSize = rGroupCaptures?.get(rPatAtom.id)?.size || 0;
+  if (rLabel === 'C' && rGroupSize <= 1) return false;
+
+  const isMeta = isMetaDirector(rLabel, rMolId, molAtoms, molBonds);
+
+  // 6. Compute target offset
+  // ruleOffset = where the rule places the new group (meta in our case)
+  // For meta directors: keep ruleOffset (no change needed)
+  // For ortho/para directors: shift by +1 to go from meta→para
+  if (isMeta) return false; // already at correct position
+
+  const targetOffset = ruleOffset + 1; // meta→para (one position further around ring)
+
+  // 7. Walk the MOLECULE ring CW from R-attach
+  // Map the pattern ring IDs to mol IDs so walkRingCW only follows actual ring carbons.
+  const molRingIds = new Set([...patRingIds].map(pid => mapping.get(pid)).filter(id => id !== undefined));
+  const molRing = walkRingCW(molAtoms, molBonds, rAttachMolId, molRingIds);
+  if (!molRing || molRing.length !== 6) return false;
+  console.log(`[EAS] mol ring walk:`, molRing, `R-attach=${rAttachMolId}, targetOffset=${targetOffset}`);
+
+  const targetMolId = molRing[targetOffset % 6];
+
+  // Find the pattern atom that maps to the target mol ring carbon
+  let targetPatId = null;
+  for (const [patId, molId] of mapping) {
+    if (molId === targetMolId) { targetPatId = patId; break; }
+  }
+  if (targetPatId === null) return false;
+
+  // 8. Re-target the addedBond
+  const bond = delta.addedBonds[newGroupBondIdx];
+  if (bond.from === newGroupAttachPatId) bond.from = targetPatId;
+  else if (bond.to === newGroupAttachPatId) bond.to = targetPatId;
+
+  // 9. Compute the rotation angle so added atom positions rotate with the bond.
+  // The angle = difference in position of old vs new ring carbon around the ring center.
+  const oldMolAtom = molAtoms.find(a => a.id === mapping.get(newGroupAttachPatId));
+  const newMolAtom = molAtoms.find(a => a.id === targetMolId);
+  if (oldMolAtom && newMolAtom) {
+    // Ring centroid
+    const cx = molRing.reduce((s, id) => s + (molAtoms.find(a => a.id === id)?.x || 0), 0) / 6;
+    const cy = molRing.reduce((s, id) => s + (molAtoms.find(a => a.id === id)?.y || 0), 0) / 6;
+    const oldAngle = Math.atan2(oldMolAtom.y - cy, oldMolAtom.x - cx);
+    const newAngle = Math.atan2(newMolAtom.y - cy, newMolAtom.x - cx);
+    const rotAngle = newAngle - oldAngle;
+    // Store rotation info on delta so applyRule can rotate addedAtomPositions
+    delta._easRotation = { cx, cy, angle: rotAngle };
+  }
+
+  console.log(`[EAS] rotated: offset ${ruleOffset}→${targetOffset}, patId ${newGroupAttachPatId}→${targetPatId}, molId ${mapping.get(newGroupAttachPatId)}→${targetMolId}`);
+  return true;
+}
+
 /**
  * Extract what the user typed in place of R/R'/R'' and which variant was replaced.
  * e.g. stored "R'MgBr, ether", input "ClMgBr, ether" → { group: "Cl", variant: "R'" }
@@ -696,14 +940,29 @@ export function applyRule(molAtoms, molBonds, rule) {
   console.log(`[applyRule] matches: total=${matches.length}, unique=${uniqueMatches.length}, posReplacementPairs:`, [...posReplacementPairs.entries()]);
 
   for (const { mapping, rGroupCaptures } of uniqueMatches) {
+    // For EAS rules (benzene + R pattern), adjust the new group's ring position
+    // based on the matched substituent's directing effect.
+    // This mutates delta.addedBonds in-place if a rotation is needed.
+    adjustEASDirecting(mapping, patternAtoms, rule.patternBonds, delta, currentAtoms, currentBonds, rGroupCaptures);
+
     const xform = computePatternToMolTransform(patternAtoms, molAtoms, mapping);
     const addedAtomPositions = new Map();
     (rule.resultAtoms || []).forEach(ra => {
       if (delta.addedAtoms.some(a => a.id === ra.id)) {
-        const { x, y } = xform(ra.x, ra.y);
+        let { x, y } = xform(ra.x, ra.y);
+        // If EAS directing rotated the bond, also rotate atom positions
+        // so the added group appears at the new ring carbon with correct angles.
+        if (delta._easRotation) {
+          const { cx, cy, angle } = delta._easRotation;
+          const dx = x - cx, dy = y - cy;
+          x = cx + dx * Math.cos(angle) - dy * Math.sin(angle);
+          y = cy + dx * Math.sin(angle) + dy * Math.cos(angle);
+        }
         addedAtomPositions.set(ra.id, snapToGrid(x, y));
       }
     });
+    // Clean up the rotation marker so it doesn't persist to next match
+    delete delta._easRotation;
 
     const before = currentAtoms.length;
     const result = applyDelta(currentAtoms, currentBonds, delta, mapping, rGroupCaptures, addedAtomPositions, posReplacementPairs);
