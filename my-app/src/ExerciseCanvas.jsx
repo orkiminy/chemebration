@@ -5,6 +5,8 @@ import ReactionArrow from "./addingReaction";
 import { reactionLevels } from "./data/reactionLevels.js";
 import { checkIsomorphism } from "./chemistryUtils";
 import { applyReaction } from "./engine/transformationEngine.js";
+import { loadRules } from "./engine/reactionRules";
+import { rulesToExercises } from "./engine/ruleToExercise";
 
 // --- FIREBASE IMPORTS ---
 import { db } from './firebase';
@@ -44,14 +46,26 @@ export default function ExerciseCanvas({ exerciseType = "OneStepReaction", chapt
   const GRID_SPACING = 40;
   const SNAP_RADIUS = 10;
 
-  // Filter levels by chapter (null = all)
+  // --- Rule-based exercises from Firestore ---
+  const [ruleLevels, setRuleLevels] = useState([]);
+  const [rulesLoading, setRulesLoading] = useState(true);
+
+  useEffect(() => {
+    loadRules()
+      .then(rules => setRuleLevels(rulesToExercises(rules)))
+      .catch(err => console.error("Failed to load rules:", err))
+      .finally(() => setRulesLoading(false));
+  }, []);
+
+  // Merge hardcoded + rule-based exercises, then filter by chapter
+  const allLevels = useMemo(() => [...reactionLevels, ...ruleLevels], [ruleLevels]);
   const filteredLevels = useMemo(() =>
-    chapter ? reactionLevels.filter(l => l.chapter === chapter) : reactionLevels,
-    [chapter]
+    chapter ? allLevels.filter(l => l.chapter === chapter) : allLevels,
+    [chapter, allLevels]
   );
 
   /* ---------- STATE ---------- */
-  const [levelIndex, setLevelIndex] = useState(() => Math.floor(Math.random() * filteredLevels.length));
+  const [levelIndex, setLevelIndex] = useState(0);
   const [questionCount, setQuestionCount] = useState(1);
   const [questionStartTime, setQuestionStartTime] = useState(Date.now());
 
@@ -82,6 +96,13 @@ export default function ExerciseCanvas({ exerciseType = "OneStepReaction", chapt
 
 const { user } = useAuth();
   const currentLevel = filteredLevels[levelIndex];
+
+  // Reset level index when the filtered list changes (e.g. rules finish loading)
+  useEffect(() => {
+    if (filteredLevels.length > 0) {
+      setLevelIndex(Math.floor(Math.random() * filteredLevels.length));
+    }
+  }, [filteredLevels.length]);
 
   /* Clear feedback when user modifies canvas */
   useEffect(() => {
@@ -379,7 +400,11 @@ const { user } = useAuth();
     if (currentLevel.multiStep && currentLevel.steps) {
       // For multi-step: show the current step's stored solution
       products = currentLevel.steps[currentStep].solutions || [];
+    } else if (currentLevel.solutions) {
+      // Rule-based exercises (and hardcoded ones with stored solutions)
+      products = currentLevel.solutions;
     } else {
+      // Legacy hardcoded exercises using descriptor-based transformation
       products = applyReaction(currentLevel.id, currentLevel.question.atoms, currentLevel.question.bonds);
     }
     setAnswerProducts(products);
@@ -446,6 +471,19 @@ const { user } = useAuth();
     if (currentLevel.solutions) possibleSolutions = currentLevel.solutions;
     else if (currentLevel.solution) possibleSolutions = [currentLevel.solution];
 
+    // --- DEBUG LOGGING ---
+    console.group(`[CheckAnswer] "${currentLevel.title}" (id: ${currentLevel.id})`);
+    console.log("User atoms:", JSON.stringify(atoms.map(a => ({ id: a.id, label: a.label || "C" }))));
+    console.log("User bonds:", JSON.stringify(bonds.map(b => ({ from: b.from, to: b.to, order: b.order, style: b.style }))));
+    console.log("User atom count:", atoms.length, "| User bond count:", bonds.length);
+    possibleSolutions.forEach((sol, i) => {
+      console.log(`Solution[${i}] atoms:`, JSON.stringify(sol.atoms.map(a => ({ id: a.id, label: a.label || "C" }))));
+      console.log(`Solution[${i}] bonds:`, JSON.stringify(sol.bonds.map(b => ({ from: b.from, to: b.to, order: b.order, style: b.style }))));
+      console.log(`Solution[${i}] atom count:`, sol.atoms.length, "| bond count:", sol.bonds.length);
+    });
+    console.groupEnd();
+    // --- END DEBUG ---
+
     const matchFound = possibleSolutions.some((sol) => {
       if (!sol || !sol.atoms) return false;
       return checkIsomorphism(atoms, bonds, sol.atoms, sol.bonds);
@@ -463,6 +501,14 @@ const { user } = useAuth();
   /* ---------- HELPERS ---------- */
 
   /* ---------- RENDER ---------- */
+  if (rulesLoading) {
+    return (
+      <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#888" }}>
+        <h3>Loading exercises...</h3>
+      </div>
+    );
+  }
+
   if (!currentLevel) {
     return (
       <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#888" }}>
