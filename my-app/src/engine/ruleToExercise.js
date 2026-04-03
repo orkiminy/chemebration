@@ -13,8 +13,6 @@ const CANVAS_OFFSET = 40;
 const GRID_SPACING = 40;
 const ROW_H = GRID_SPACING * Math.sin(Math.PI / 3);
 
-const WILDCARD_LABELS = new Set(["R", "R'", "R''", "X"]);
-
 // New pointy-top offsets (relative to centroid = 0,0)
 const POINTY_TOP_OFFSETS = [
   { dx: 0,   dy: -2 * ROW_H },
@@ -27,10 +25,6 @@ const POINTY_TOP_OFFSETS = [
 
 function offsetAtoms(atoms) {
   return atoms.map(a => ({ ...a, x: a.x + CANVAS_OFFSET, y: a.y + CANVAS_OFFSET }));
-}
-
-function hasWildcards(atoms) {
-  return atoms.some(a => WILDCARD_LABELS.has(a.label));
 }
 
 /**
