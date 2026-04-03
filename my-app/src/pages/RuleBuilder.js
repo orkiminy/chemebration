@@ -601,6 +601,20 @@ export default function RuleBuilder() {
     setRules(await loadRules());
   };
 
+  const handleDuplicate = (rule) => {
+    setLeftAtoms(rule.patternAtoms ?? []);
+    setLeftBonds(rule.patternBonds ?? []);
+    setRightAtoms(rule.resultAtoms ?? []);
+    setRightBonds(rule.resultBonds ?? []);
+    setReagentSteps(rule.reagent ? rule.reagent.split(" / ") : [""]);
+    setRuleName((rule.name ?? "") + " (copy)");
+    setExplanation(rule.explanation ?? "");
+    setReactionType(rule.reactionType ?? "");
+    setEditingRule(null); // null so Save creates a NEW rule in Firestore
+    setViewRule(null);
+    setResetKey(k => (k ?? 0) + 1);
+  };
+
   const handleEdit = (rule) => {
     setLeftAtoms(rule.patternAtoms ?? []);
     setLeftBonds(rule.patternBonds ?? []);
@@ -779,6 +793,14 @@ export default function RuleBuilder() {
                         style={{ background: "none", border: "1px solid #5f021f", color: "#5f021f", borderRadius: "4px", cursor: "pointer", padding: "2px 8px" }}
                       >
                         View
+                      </button>
+                    </td>
+                    <td style={{ padding: "8px 12px", border: "1px solid #ddd", textAlign: "center" }}>
+                      <button
+                        onClick={() => handleDuplicate(r)}
+                        style={{ background: "none", border: "1px solid #1a6b3a", color: "#1a6b3a", borderRadius: "4px", cursor: "pointer", padding: "2px 8px" }}
+                      >
+                        Duplicate
                       </button>
                     </td>
                     <td style={{ padding: "8px 12px", border: "1px solid #ddd", textAlign: "center" }}>
