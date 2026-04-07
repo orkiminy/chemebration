@@ -344,6 +344,9 @@ export default function Synthesis() {
   }, [selectedBond, selectedAtom, atoms, bonds]);
 
   /* ---------- RENDER ---------- */
+  const showCanvas = steps.length === 0;
+  const forwardSteps = [...steps].reverse(); // forward order: precursor first, target last
+
   return (
     <div className="exercise-page">
       <nav className="exercise-nav">
@@ -352,249 +355,155 @@ export default function Synthesis() {
         <span className="exercise-nav-spacer"></span>
       </nav>
 
-      <div style={{ maxWidth: 960, margin: "1.5rem auto", padding: "0 1rem" }}>
-        <h2 style={{ color: "#5f021f", marginBottom: "0.5rem" }}>Draw your target molecule</h2>
-        <p style={{ color: "#666", marginTop: 0 }}>
-          Draw the product you want to synthesize, then click "Analyze Synthesis" to find a path.
-        </p>
+      <div style={{ maxWidth: 1200, margin: "1.5rem auto", padding: "0 1rem" }}>
 
-        <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
-          {/* Drawing canvas */}
-          <div>
-            <div className="exercise-panel-box">
-              <div className="exercise-panel-label">Target Product</div>
-              <svg
-                width={WIDTH}
-                height={HEIGHT}
-                viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-                style={{ display: "block", maxWidth: "100%", height: "auto", cursor: tool === "eraser" ? "not-allowed" : ringType ? "copy" : "crosshair" }}
-                onMouseDown={handleCanvasMouseDown}
-                onMouseMove={handleCanvasMouseMove}
-                onMouseUp={handleCanvasMouseUp}
-                onMouseLeave={() => { setDragFrom(null); setDragTo(null); }}
-              >
-                {/* Grid */}
-                {gridPoints.map((p, i) => (
-                  <circle key={i} cx={p.x} cy={p.y} r="1.5" fill="#ccc" />
-                ))}
-                {/* Bonds */}
-                {bonds.map(bond => {
-                  const a1 = atoms.find(a => a.id === bond.from);
-                  const a2 = atoms.find(a => a.id === bond.to);
-                  if (!a1 || !a2) return null;
-                  const bondHandlers = {
-                    onMouseDown: (e) => e.stopPropagation(),
-                    onClick: (e) => { e.stopPropagation(); handleBondClick(bond.id); },
-                  };
-                  if (bond.style === "wedge") {
-                    const dx = a2.x - a1.x, dy = a2.y - a1.y;
-                    const angle = Math.atan2(dy, dx);
-                    const w = 6, perp = angle + Math.PI / 2;
-                    return (
-                      <polygon key={bond.id}
-                        points={`${a1.x},${a1.y} ${a2.x + Math.cos(perp) * w},${a2.y + Math.sin(perp) * w} ${a2.x - Math.cos(perp) * w},${a2.y - Math.sin(perp) * w}`}
-                        fill={bond.id === selectedBond ? "red" : "#000"} {...bondHandlers}
-                      />
-                    );
-                  }
-                  const bpDx = a2.y - a1.y, bpDy = a2.x - a1.x;
-                  const len = Math.sqrt(bpDx * bpDx + bpDy * bpDy) || 1;
-                  let offsetX = (bpDx / len) * 4, offsetY = (bpDy / len) * 4;
-                  if (bond.ringCenter && (bond.order || 1) > 1) {
-                    const midX = (a1.x + a2.x) / 2, midY = (a1.y + a2.y) / 2;
-                    const dot = offsetX * (bond.ringCenter.x - midX) + (-offsetY) * (bond.ringCenter.y - midY);
-                    if (dot < 0) { offsetX = -offsetX; offsetY = -offsetY; }
-                  }
-                  return (
-                    <g key={bond.id}>
-                      <line x1={a1.x} y1={a1.y} x2={a2.x} y2={a2.y} stroke="transparent" strokeWidth="16" {...bondHandlers} />
-                      {[...Array(bond.order)].map((_, i) => (
-                        <line key={i}
-                          x1={a1.x + offsetX * i} y1={a1.y - offsetY * i}
-                          x2={a2.x + offsetX * i} y2={a2.y - offsetY * i}
-                          stroke={bond.id === selectedBond ? "red" : "#000"} strokeWidth="3"
-                          strokeDasharray={bond.style === "striped" ? "6,4" : "0"} pointerEvents="none"
-                        />
-                      ))}
-                    </g>
-                  );
-                })}
-                {/* Atoms */}
-                {atoms.map(atom => {
-                  const isC = !atom.label || atom.label === "C";
-                  return (
-                    <g key={atom.id}>
-                      <circle cx={atom.x} cy={atom.y} r={atomRadius(atom.label)} fill="transparent"
-                        onMouseDown={(e) => handleAtomMouseDown(e, atom.id)}
-                        onClick={(e) => handleAtomClick(e, atom.id)}
-                      />
-                      {(!isC || atom.id === selectedAtom) && (
-                        <circle cx={atom.x} cy={atom.y} r={atomRadius(atom.label)}
-                          fill={atom.id === selectedAtom ? "red" : atomFill(atom.label)}
-                          stroke="#222" strokeWidth="1" pointerEvents="none"
-                        />
-                      )}
-                      {!isC && (
-                        <text x={atom.x} y={atom.y + 4} textAnchor="middle" fontSize="12"
-                          fill={atomTextColor(atom.label)} pointerEvents="none"
-                        >{atom.label}</text>
-                      )}
-                    </g>
-                  );
-                })}
-                {/* Drag preview */}
-                {dragFrom && dragTo && (Math.hypot(dragTo.x - dragFrom.x, dragTo.y - dragFrom.y) > SNAP_RADIUS) && (
-                  <line x1={dragFrom.x} y1={dragFrom.y} x2={dragTo.x} y2={dragTo.y}
-                    stroke="#999" strokeWidth="2" strokeDasharray="5,3" pointerEvents="none"
-                  />
-                )}
-              </svg>
-            </div>
-
-            {/* Toolbar */}
-            <div className="exercise-toolbar" style={{ width: WIDTH, boxSizing: "border-box" }}>
-              <div className="toolbar-group">
-                <button className={`toolbar-btn${tool === "pencil" ? " toolbar-btn-active" : ""}`} onClick={() => { setTool("pencil"); setRingType(null); }}>Pencil</button>
-                <button className={`toolbar-btn${tool === "eraser" ? " toolbar-btn-active" : ""}`} onClick={() => { setTool("eraser"); setRingType(null); }}>Eraser</button>
-                <button className="toolbar-btn" onClick={() => { saveHistory(atoms, bonds); setAtoms([]); setBonds([]); }}>Clear</button>
-                <button className="toolbar-btn" disabled={!history.length} onClick={() => {
-                  const prev = history[history.length - 1];
-                  setFuture(f => [{ atoms, bonds }, ...f]);
-                  setHistory(h => h.slice(0, -1));
-                  setAtoms(prev.atoms); setBonds(prev.bonds);
-                }}>&#8617; Undo</button>
-                <button className="toolbar-btn" disabled={!future.length} onClick={() => {
-                  const next = future[0];
-                  setHistory(h => [...h, { atoms, bonds }]);
-                  setFuture(f => f.slice(1));
-                  setAtoms(next.atoms); setBonds(next.bonds);
-                }}>&#8618; Redo</button>
-              </div>
-              <div className="toolbar-group">
-                <button className={`toolbar-btn${ringType === "benzene" ? " toolbar-btn-active" : ""}`} onClick={() => { setRingType(r => r === "benzene" ? null : "benzene"); setTool("pencil"); }}>Benzene</button>
-                <button className={`toolbar-btn${ringType === "cyclohexane" ? " toolbar-btn-active" : ""}`} onClick={() => { setRingType(r => r === "cyclohexane" ? null : "cyclohexane"); setTool("pencil"); }}>Cyclohex</button>
-              </div>
-              {tool === "pencil" && !ringType && (
-                <div className="toolbar-group">
-                  <select className="toolbar-select" value={atomType} onChange={(e) => setAtomType(e.target.value)}>
-                    <option value="C">C</option><option value="H">H</option>
-                    <option value="O">O</option><option value="N">N</option>
-                    <option value="Br">Br</option><option value="Cl">Cl</option>
-                    <option value="F">F</option><option value="I">I</option>
-                    <option value="S">S</option><option value="P">P</option>
-                    <option value="OH">OH</option>
-                  </select>
-                  <select className="toolbar-select" value={bondStyle} onChange={(e) => setBondStyle(e.target.value)}>
-                    <option value="solid">Solid (Line)</option>
-                    <option value="wedge">Solid (Wedge)</option>
-                    <option value="striped">Dashed (Striped)</option>
-                  </select>
+        {/* ===== PHASE 1: Drawing canvas (before analysis) ===== */}
+        {showCanvas && (
+          <>
+            <h2 style={{ color: "#5f021f", marginBottom: "0.5rem" }}>Draw your target molecule</h2>
+            <p style={{ color: "#666", marginTop: 0 }}>
+              Draw the product you want to synthesize, then click "Find Disconnections".
+            </p>
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <div>
+                <div className="exercise-panel-box">
+                  <div className="exercise-panel-label">Target Product</div>
+                  <svg
+                    width={WIDTH} height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+                    style={{ display: "block", maxWidth: "100%", height: "auto", cursor: tool === "eraser" ? "not-allowed" : ringType ? "copy" : "crosshair" }}
+                    onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove}
+                    onMouseUp={handleCanvasMouseUp} onMouseLeave={() => { setDragFrom(null); setDragTo(null); }}
+                  >
+                    {gridPoints.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="1.5" fill="#ccc" />)}
+                    {bonds.map(bond => {
+                      const a1 = atoms.find(a => a.id === bond.from);
+                      const a2 = atoms.find(a => a.id === bond.to);
+                      if (!a1 || !a2) return null;
+                      const bondHandlers = { onMouseDown: (e) => e.stopPropagation(), onClick: (e) => { e.stopPropagation(); handleBondClick(bond.id); } };
+                      if (bond.style === "wedge") {
+                        const dx = a2.x - a1.x, dy = a2.y - a1.y, angle = Math.atan2(dy, dx), w = 6, perp = angle + Math.PI / 2;
+                        return <polygon key={bond.id} points={`${a1.x},${a1.y} ${a2.x + Math.cos(perp) * w},${a2.y + Math.sin(perp) * w} ${a2.x - Math.cos(perp) * w},${a2.y - Math.sin(perp) * w}`} fill={bond.id === selectedBond ? "red" : "#000"} {...bondHandlers} />;
+                      }
+                      const bpDx = a2.y - a1.y, bpDy = a2.x - a1.x, len = Math.sqrt(bpDx * bpDx + bpDy * bpDy) || 1;
+                      let offsetX = (bpDx / len) * 4, offsetY = (bpDy / len) * 4;
+                      if (bond.ringCenter && (bond.order || 1) > 1) {
+                        const midX = (a1.x + a2.x) / 2, midY = (a1.y + a2.y) / 2;
+                        const dot = offsetX * (bond.ringCenter.x - midX) + (-offsetY) * (bond.ringCenter.y - midY);
+                        if (dot < 0) { offsetX = -offsetX; offsetY = -offsetY; }
+                      }
+                      return (
+                        <g key={bond.id}>
+                          <line x1={a1.x} y1={a1.y} x2={a2.x} y2={a2.y} stroke="transparent" strokeWidth="16" {...bondHandlers} />
+                          {[...Array(bond.order)].map((_, i) => (
+                            <line key={i} x1={a1.x + offsetX * i} y1={a1.y - offsetY * i} x2={a2.x + offsetX * i} y2={a2.y - offsetY * i}
+                              stroke={bond.id === selectedBond ? "red" : "#000"} strokeWidth="3" strokeDasharray={bond.style === "striped" ? "6,4" : "0"} pointerEvents="none" />
+                          ))}
+                        </g>
+                      );
+                    })}
+                    {atoms.map(atom => {
+                      const isC = !atom.label || atom.label === "C";
+                      return (
+                        <g key={atom.id}>
+                          <circle cx={atom.x} cy={atom.y} r={atomRadius(atom.label)} fill="transparent" onMouseDown={(e) => handleAtomMouseDown(e, atom.id)} onClick={(e) => handleAtomClick(e, atom.id)} />
+                          {(!isC || atom.id === selectedAtom) && <circle cx={atom.x} cy={atom.y} r={atomRadius(atom.label)} fill={atom.id === selectedAtom ? "red" : atomFill(atom.label)} stroke="#222" strokeWidth="1" pointerEvents="none" />}
+                          {!isC && <text x={atom.x} y={atom.y + 4} textAnchor="middle" fontSize="12" fill={atomTextColor(atom.label)} pointerEvents="none">{atom.label}</text>}
+                        </g>
+                      );
+                    })}
+                    {dragFrom && dragTo && (Math.hypot(dragTo.x - dragFrom.x, dragTo.y - dragFrom.y) > SNAP_RADIUS) && (
+                      <line x1={dragFrom.x} y1={dragFrom.y} x2={dragTo.x} y2={dragTo.y} stroke="#999" strokeWidth="2" strokeDasharray="5,3" pointerEvents="none" />
+                    )}
+                  </svg>
                 </div>
-              )}
-              <div className="toolbar-group">
-                <button
-                  className="toolbar-btn toolbar-btn-check"
-                  disabled={atoms.length === 0 || analyzing}
-                  onClick={handleStartAnalysis}
-                >
-                  {analyzing ? "Analyzing..." : "Find Disconnections"}
-                </button>
-                {steps.length > 1 && (
-                  <button className="toolbar-btn" onClick={handleUndo}>Undo Step</button>
-                )}
-                {steps.length > 0 && (
-                  <button className="toolbar-btn" onClick={handleReset}>Reset</button>
-                )}
+                <div className="exercise-toolbar" style={{ width: WIDTH, boxSizing: "border-box" }}>
+                  <div className="toolbar-group">
+                    <button className={`toolbar-btn${tool === "pencil" ? " toolbar-btn-active" : ""}`} onClick={() => { setTool("pencil"); setRingType(null); }}>Pencil</button>
+                    <button className={`toolbar-btn${tool === "eraser" ? " toolbar-btn-active" : ""}`} onClick={() => { setTool("eraser"); setRingType(null); }}>Eraser</button>
+                    <button className="toolbar-btn" onClick={() => { saveHistory(atoms, bonds); setAtoms([]); setBonds([]); }}>Clear</button>
+                    <button className="toolbar-btn" disabled={!history.length} onClick={() => { const prev = history[history.length - 1]; setFuture(f => [{ atoms, bonds }, ...f]); setHistory(h => h.slice(0, -1)); setAtoms(prev.atoms); setBonds(prev.bonds); }}>&#8617; Undo</button>
+                    <button className="toolbar-btn" disabled={!future.length} onClick={() => { const next = future[0]; setHistory(h => [...h, { atoms, bonds }]); setFuture(f => f.slice(1)); setAtoms(next.atoms); setBonds(next.bonds); }}>&#8618; Redo</button>
+                  </div>
+                  <div className="toolbar-group">
+                    <button className={`toolbar-btn${ringType === "benzene" ? " toolbar-btn-active" : ""}`} onClick={() => { setRingType(r => r === "benzene" ? null : "benzene"); setTool("pencil"); }}>Benzene</button>
+                    <button className={`toolbar-btn${ringType === "cyclohexane" ? " toolbar-btn-active" : ""}`} onClick={() => { setRingType(r => r === "cyclohexane" ? null : "cyclohexane"); setTool("pencil"); }}>Cyclohex</button>
+                  </div>
+                  {tool === "pencil" && !ringType && (
+                    <div className="toolbar-group">
+                      <select className="toolbar-select" value={atomType} onChange={(e) => setAtomType(e.target.value)}>
+                        <option value="C">C</option><option value="H">H</option><option value="O">O</option><option value="N">N</option>
+                        <option value="Br">Br</option><option value="Cl">Cl</option><option value="F">F</option><option value="I">I</option>
+                        <option value="S">S</option><option value="P">P</option><option value="OH">OH</option>
+                      </select>
+                      <select className="toolbar-select" value={bondStyle} onChange={(e) => setBondStyle(e.target.value)}>
+                        <option value="solid">Solid (Line)</option><option value="wedge">Solid (Wedge)</option><option value="striped">Dashed (Striped)</option>
+                      </select>
+                    </div>
+                  )}
+                  <div className="toolbar-group">
+                    <button className="toolbar-btn toolbar-btn-check" disabled={atoms.length === 0} onClick={handleStartAnalysis}>
+                      Find Disconnections
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </>
+        )}
 
-          {/* Results area */}
-          <div style={{ flex: 1, minWidth: 300 }}>
-            {/* Initial empty state */}
-            {steps.length === 0 && !analyzing && (
-              <div style={{ padding: "2rem", textAlign: "center", color: "#aaa", border: "2px dashed #ddd", borderRadius: 10, minHeight: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <p>Draw a target molecule and click "Find Disconnections" to start retrosynthesis.</p>
-              </div>
-            )}
+        {/* ===== PHASE 2: Analysis mode (after clicking Find Disconnections) ===== */}
+        {!showCanvas && (
+          <>
+            {/* Controls bar */}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
+              <h2 style={{ color: "#5f021f", margin: 0 }}>Synthesis Path</h2>
+              {steps.length > 1 && (
+                <button onClick={handleUndo} style={{ padding: "8px 16px", fontSize: "0.9rem", background: "#fff", border: "2px solid #5f021f", color: "#5f021f", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}>&#8617; Undo Step</button>
+              )}
+              <button onClick={handleReset} style={{ padding: "8px 16px", fontSize: "0.9rem", background: "#5f021f", border: "none", color: "#fff", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}>Start Over</button>
+              {pathComplete && (
+                <span style={{ color: "#1a6b3a", fontWeight: 600, fontSize: "1.1rem", marginLeft: 8 }}>Path complete!</span>
+              )}
+            </div>
 
             {/* Analyzing spinner */}
             {analyzing && (
-              <div style={{ padding: "2rem", textAlign: "center", color: "#5f021f", border: "2px dashed #5f021f", borderRadius: 10, minHeight: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <p>Analyzing... Finding possible disconnections.</p>
+              <div style={{ padding: "1.5rem", textAlign: "center", color: "#5f021f", border: "2px dashed #5f021f", borderRadius: 10, marginBottom: "1.5rem" }}>
+                <p style={{ margin: 0 }}>Finding possible disconnections...</p>
               </div>
             )}
 
-            {/* Accumulated path so far */}
-            {steps.length > 0 && (
-              <div style={{ marginBottom: "1rem" }}>
-                <h3 style={{ color: "#5f021f", marginBottom: "0.5rem" }}>
-                  Path so far ({steps.length - 1} step{steps.length - 1 !== 1 ? "s" : ""})
-                </h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                  {[...steps].reverse().map((step, i) => {
-                    const reverseIdx = steps.length - 1 - i;
-                    return (
-                      <div key={i}>
-                        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: "0.5rem", background: reverseIdx === steps.length - 1 ? "#f0fff0" : "#fff" }}>
-                          <div style={{ fontSize: "0.75rem", color: "#888", marginBottom: 2 }}>
-                            {reverseIdx === 0 ? "Target" : reverseIdx === steps.length - 1 ? "Current (working backwards)" : `Step back ${reverseIdx}`}
-                          </div>
-                          <div style={{ transform: "scale(0.45)", transformOrigin: "top left", width: 216, height: 216, overflow: "hidden" }}>
-                            <SetCanvas atoms={step.atoms} bonds={step.bonds} />
-                          </div>
-                        </div>
-                        {i < steps.length - 1 && (
-                          <div style={{ textAlign: "center", padding: "2px 0", fontSize: "0.8rem", color: "#5f021f" }}>
-                            &#8593; {step.reagent || ""}
-                            <span style={{ color: "#888", fontSize: "0.7rem" }}> ({step.ruleName})</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Path complete */}
-            {pathComplete && (
-              <div style={{ padding: "1rem", textAlign: "center", color: "#1a6b3a", border: "2px solid #1a6b3a", borderRadius: 10, background: "#f0fff0", marginBottom: "1rem" }}>
-                <h3 style={{ margin: "0 0 0.25rem" }}>Path complete!</h3>
-                <p style={{ margin: 0 }}>Reached a simple starting material.</p>
-              </div>
-            )}
-
-            {/* Possible disconnections to choose from */}
+            {/* Disconnection choices — AT THE TOP */}
             {!analyzing && !pathComplete && disconnections.length > 0 && (
-              <div>
-                <h3 style={{ color: "#333", marginBottom: "0.5rem" }}>
-                  Possible disconnections ({disconnections.length})
+              <div style={{ marginBottom: "2rem" }}>
+                <h3 style={{ color: "#333", marginBottom: "0.25rem", fontSize: "1.3rem" }}>
+                  Choose a disconnection ({disconnections.length} option{disconnections.length !== 1 ? "s" : ""})
                 </h3>
-                <p style={{ color: "#888", fontSize: "0.85rem", marginTop: 0 }}>
-                  Pick a reaction that could have produced this molecule:
+                <p style={{ color: "#888", fontSize: "1rem", marginTop: 0, marginBottom: "1rem" }}>
+                  Which reaction produced the current molecule?
                 </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", justifyContent: "center" }}>
                   {disconnections.map((disc, i) => (
                     <button
                       key={i}
                       onClick={() => handlePickDisconnection(disc)}
                       style={{
-                        display: "flex", alignItems: "center", gap: "0.75rem",
-                        padding: "0.75rem", border: disc.verified ? "2px solid #1a6b3a" : "1px solid #ddd",
-                        borderRadius: 8, background: disc.verified ? "#f0fff0" : "#fff",
-                        cursor: "pointer", textAlign: "left", width: "100%",
+                        display: "flex", flexDirection: "column", alignItems: "center",
+                        padding: "1rem 1.25rem", border: disc.verified ? "2px solid #1a6b3a" : "2px solid #ddd",
+                        borderRadius: 12, background: disc.verified ? "#f0fff0" : "#fff",
+                        cursor: "pointer", textAlign: "center", width: 220,
+                        transition: "box-shadow 0.15s, transform 0.15s",
                       }}
+                      onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.15)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; }}
                     >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, color: "#5f021f" }}>{disc.rule.reagent}</div>
-                        <div style={{ fontSize: "0.85rem", color: "#666" }}>{disc.rule.name}</div>
-                        <div style={{ fontSize: "0.75rem", color: disc.verified ? "#1a6b3a" : "#c90" }}>
-                          {disc.verified ? "Verified ✓" : "Unverified"} — coverage {(disc.coverage * 100).toFixed(0)}%
-                        </div>
+                      <div style={{ width: 140, height: 140, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "0.5rem" }}>
+                        <SetCanvas atoms={disc.precursor.atoms} bonds={disc.precursor.bonds} hideGrid size={140} />
                       </div>
-                      <div style={{ transform: "scale(0.3)", transformOrigin: "top right", width: 144, height: 144, overflow: "hidden" }}>
-                        <SetCanvas atoms={disc.precursor.atoms} bonds={disc.precursor.bonds} />
+                      <div style={{ fontWeight: 700, color: "#5f021f", fontSize: "1.05rem" }}>{disc.rule.reagent}</div>
+                      <div style={{ fontSize: "0.9rem", color: "#555", marginTop: 4 }}>{disc.rule.name}</div>
+                      <div style={{ fontSize: "0.8rem", color: disc.verified ? "#1a6b3a" : "#c90", marginTop: 6, fontWeight: 600 }}>
+                        {disc.verified ? "Verified ✓" : "Unverified"}
                       </div>
                     </button>
                   ))}
@@ -603,13 +512,74 @@ export default function Synthesis() {
             )}
 
             {/* No disconnections found */}
-            {!analyzing && steps.length > 0 && !pathComplete && disconnections.length === 0 && (
-              <div style={{ padding: "1rem", textAlign: "center", color: "#c00", border: "1px solid #fcc", borderRadius: 10, background: "#fff5f5" }}>
-                <p style={{ margin: 0 }}>No disconnections found for this molecule. Try undoing the last step.</p>
+            {!analyzing && !pathComplete && disconnections.length === 0 && (
+              <div style={{ padding: "1.5rem", textAlign: "center", color: "#c00", border: "1px solid #fcc", borderRadius: 10, background: "#fff5f5", marginBottom: "1.5rem" }}>
+                <p style={{ margin: 0 }}>No disconnections found. Try undoing the last step or starting over.</p>
               </div>
             )}
-          </div>
-        </div>
+
+            {/* Synthesis chain — AT THE BOTTOM, wraps to next line */}
+            <div style={{ borderTop: "2px solid #eee", paddingTop: "1.5rem" }}>
+              <h3 style={{ color: "#5f021f", marginBottom: "1rem", fontSize: "1.3rem" }}>
+                Synthesis Path ({steps.length - 1} step{steps.length - 1 !== 1 ? "s" : ""})
+              </h3>
+              <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "12px 0" }}>
+                {forwardSteps.map((step, i) => {
+                  const isLast = i === forwardSteps.length - 1;
+                  const isFirst = i === 0;
+                  const isCurrent = isFirst && !pathComplete;
+
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+                      {/* Arrow BEFORE this molecule (except the first) */}
+                      {!isFirst && (() => {
+                        const prevStep = forwardSteps[i - 1];
+                        const reagent = prevStep.reagent || step.reagent;
+                        const rule = prevStep.reagent ? prevStep.ruleName : step.ruleName;
+                        return (
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "0 6px", width: 120 }}>
+                            {reagent && reagent !== "Target" && (
+                              <div style={{ fontSize: "0.9rem", color: "#5f021f", fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>
+                                {reagent}
+                              </div>
+                            )}
+                            <svg width="60" height="16" viewBox="0 0 60 16" style={{ margin: "4px 0", flexShrink: 0 }}>
+                              <line x1="2" y1="8" x2="46" y2="8" stroke="#5f021f" strokeWidth="2.5" />
+                              <polygon points="46,4 58,8 46,12" fill="#5f021f" />
+                            </svg>
+                            {rule && rule !== "Target" && (
+                              <div style={{ fontSize: "0.75rem", color: "#777", textAlign: "center", lineHeight: 1.2 }}>
+                                {rule}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Molecule card */}
+                      <div style={{
+                        border: (isCurrent || isLast) ? "2px solid #5f021f" : "1px solid #ddd",
+                        borderRadius: 12,
+                        padding: "8px",
+                        background: isLast ? "#fdf5f7" : isCurrent ? "#f5f0ff" : "#fff",
+                        width: 160,
+                        textAlign: "center",
+                        flexShrink: 0,
+                      }}>
+                        <div style={{ fontSize: "0.9rem", fontWeight: 700, color: (isCurrent || isLast) ? "#5f021f" : "#666", marginBottom: 4 }}>
+                          {isLast ? "Target" : isFirst && pathComplete ? "Start" : isCurrent ? "Current" : `Step ${i}`}
+                        </div>
+                        <div style={{ width: 144, height: 144, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <SetCanvas atoms={step.atoms} bonds={step.bonds} hideGrid size={144} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

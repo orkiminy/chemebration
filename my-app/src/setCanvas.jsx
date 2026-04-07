@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { atomFill, atomTextColor, atomRadius } from "./engine/atomColors";
 
-export default function SetCanvas({ atoms = [], bonds = [] }) {
+export default function SetCanvas({ atoms = [], bonds = [], hideGrid = false, size = null }) {
   const WIDTH = 480;
   const HEIGHT = 480;
   const GRID_SPACING = 40;
@@ -62,16 +62,38 @@ export default function SetCanvas({ atoms = [], bonds = [] }) {
     return atoms.map(a => ({ ...a, x: a.x + dx, y: a.y + dy }));
   }, [atoms]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Compute tight viewBox when in compact mode (hideGrid + size)
+  const viewBox = useMemo(() => {
+    if (!hideGrid || !size || centeredAtoms.length === 0) {
+      return `0 0 ${WIDTH} ${HEIGHT}`;
+    }
+    const xs = centeredAtoms.map(a => a.x);
+    const ys = centeredAtoms.map(a => a.y);
+    const pad = 30;
+    const minX = Math.min(...xs) - pad;
+    const minY = Math.min(...ys) - pad;
+    const maxX = Math.max(...xs) + pad;
+    const maxY = Math.max(...ys) + pad;
+    const w = maxX - minX;
+    const h = maxY - minY;
+    // Keep it square so molecules don't stretch
+    // Minimum side of 200 so small molecules (2-3 atoms) don't get blown up huge
+    const side = Math.max(w, h, 200);
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    return `${cx - side / 2} ${cy - side / 2} ${side} ${side}`;
+  }, [centeredAtoms, hideGrid, size]);
+
   return (
     <div style={{ fontFamily: "Arial" }}>
       <svg
-        width={WIDTH}
-        height={HEIGHT}
-        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        width={size || WIDTH}
+        height={size || HEIGHT}
+        viewBox={viewBox}
         style={{ display: "block", maxWidth: "100%", height: "auto" }}
       >
         {/* GRID */}
-        {gridPoints.map((p, i) => (
+        {!hideGrid && gridPoints.map((p, i) => (
           <circle key={i} cx={p.x} cy={p.y} r="1.5" fill="#ccc" />
         ))}
 
