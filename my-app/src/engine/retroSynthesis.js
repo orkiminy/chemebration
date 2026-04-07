@@ -77,6 +77,71 @@ function normalizeBenzene(atoms, bonds) {
 }
 
 /** Check if a molecule is "simple" (common starting material) */
+/** Check if molecule contains a 6-member carbon ring with alternating single/double bonds (benzene) */
+function hasAromaticRing(atoms, bonds) {
+  return findSixRings(atoms, bonds).some(ring => {
+    const orders = ring.map((id, i) => {
+      const nextId = ring[(i + 1) % 6];
+      const bond = bonds.find(b =>
+        (b.from === id && b.to === nextId) || (b.from === nextId && b.to === id)
+      );
+      return bond ? (bond.order || 1) : 1;
+    });
+    return orders.includes(1) && orders.includes(2);
+  });
+}
+
+/** Check if molecule contains a 6-member carbon ring with ALL single bonds (cyclohexane) */
+function hasSaturatedRing(atoms, bonds) {
+  return findSixRings(atoms, bonds).some(ring => {
+    const orders = ring.map((id, i) => {
+      const nextId = ring[(i + 1) % 6];
+      const bond = bonds.find(b =>
+        (b.from === id && b.to === nextId) || (b.from === nextId && b.to === id)
+      );
+      return bond ? (bond.order || 1) : 1;
+    });
+    return orders.every(o => o === 1);
+  });
+}
+
+/** Find all 6-member all-carbon rings. Returns array of arrays of atom IDs. */
+function findSixRings(atoms, bonds) {
+  const carbonIds = new Set(
+    atoms.filter(a => { const l = (a.label || "C").trim(); return l === "C" || l === ""; }).map(a => a.id)
+  );
+  const adj = new Map();
+  atoms.forEach(a => adj.set(a.id, []));
+  bonds.forEach(b => {
+    if (adj.has(b.from) && adj.has(b.to)) {
+      adj.get(b.from).push(b.to);
+      adj.get(b.to).push(b.from);
+    }
+  });
+
+  const rings = [];
+  const seen = new Set();
+  for (const startId of carbonIds) {
+    const path = [startId];
+    const stack = [{ neighbors: [...(adj.get(startId) || [])].filter(n => carbonIds.has(n)) }];
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1];
+      if (frame.neighbors.length === 0) { stack.pop(); path.pop(); continue; }
+      const next = frame.neighbors.pop();
+      if (path.length === 6 && next === startId) {
+        const sorted = [...path].sort((a, b) => a - b);
+        const key = sorted.join(",");
+        if (!seen.has(key)) { seen.add(key); rings.push([...path]); }
+        continue;
+      }
+      if (path.length >= 6 || path.includes(next)) continue;
+      path.push(next);
+      stack.push({ neighbors: [...(adj.get(next) || [])].filter(n => carbonIds.has(n)) });
+    }
+  }
+  return rings;
+}
+
 export function isSimpleMolecule(atoms, bonds) {
   if (atoms.length === 0) return true;
   if (atoms.length === 6 && bonds.length === 6) {
@@ -119,6 +184,21 @@ export function findPossibleDisconnections(targetAtoms, targetBonds, rules) {
       continue;
     }
 
+    // Check for aromatic mismatch: skip if result has cyclohexane but target has benzene (or vice versa)
+    const resultHasBenzene = hasAromaticRing(resultAtoms, rule.resultBonds);
+    const resultHasCyclohexane = hasSaturatedRing(resultAtoms, rule.resultBonds);
+    const targetHasBenzene = hasAromaticRing(targetAtoms, targetBonds);
+    const targetHasCyclohexane = hasSaturatedRing(targetAtoms, targetBonds);
+
+    if (resultHasCyclohexane && !resultHasBenzene && targetHasBenzene && !targetHasCyclohexane) {
+      console.log(`  [retro] SKIP "${rule.name}" — result has cyclohexane but target has benzene`);
+      continue;
+    }
+    if (resultHasBenzene && !resultHasCyclohexane && targetHasCyclohexane && !targetHasBenzene) {
+      console.log(`  [retro] SKIP "${rule.name}" — result has benzene but target has cyclohexane`);
+      continue;
+    }
+
     // Normalize target for matching
     const normTargetBonds = normalizeBenzene(targetAtoms, targetBonds);
 
@@ -126,6 +206,10 @@ export function findPossibleDisconnections(targetAtoms, targetBonds, rules) {
     const matches = findMatches(resultAtoms, resultBonds, targetAtoms, normTargetBonds);
     if (matches.length === 0) {
       console.log(`  [retro] "${rule.name}" — no match (${resultAtoms.length} result atoms vs ${targetAtoms.length} target atoms)`);
+      console.log(`    result labels: [${resultAtoms.map(a => a.label || "C").join(", ")}]`);
+      console.log(`    result bonds: [${resultBonds.map(b => `${b.from}→${b.to}:ord${b.order||1}`).join(", ")}]`);
+      console.log(`    target labels: [${targetAtoms.map(a => a.label || "C").join(", ")}]`);
+      console.log(`    target bonds: [${normTargetBonds.map(b => `${b.from}→${b.to}:ord${b.order||1}`).join(", ")}]`);
       continue;
     }
 

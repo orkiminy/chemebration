@@ -21,7 +21,8 @@ const AROMATIC_ORDER = 1.5; // sentinel set by normalizeBenzeneRings(); matches 
 function labelsMatch(patLabel, molLabel) {
   const pl = (patLabel || 'C').trim();
   const ml = (molLabel || 'C').trim();
-  if (pl === 'R' || pl === "R'" || pl === "R''") return true;
+  // R wildcards only match carbon atoms (the C can be connected to anything)
+  if (pl === 'R' || pl === "R'" || pl === "R''") return ml === 'C' || ml === '';
   if (pl === 'X') return HALOGENS.includes(ml);
   if (pl === 'C') return ml === 'C' || ml === '';
   // OH single-atom is equivalent to O (the H is implicit / drawn separately)
