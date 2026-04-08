@@ -80,11 +80,28 @@ export default function Synthesis() {
       console.log(`[Synthesis] Finding disconnections for ${targetAtoms.length} atoms, ${targetBonds.length} bonds`);
       let results = findPossibleDisconnections(targetAtoms, targetBonds, rules);
 
-      // Filter out disconnections whose precursor matches an ancestor step (prevents cycles).
+      // Filter 1: Don't offer rules already used in the synthesis path (prevents cycles).
+      // Uses base name matching: "Reduction of aryl alkyl ketones (copy)" and
+      // "Reduction of aryl alkyl ketones" are treated as the same rule.
+      if (previousSteps.length > 0) {
+        const baseName = (name) => (name || '').replace(/\s*\(copy\)\s*/i, '').trim().toLowerCase();
+        const usedBaseNames = new Set(previousSteps.map(s => baseName(s.ruleName)).filter(Boolean));
+        const before1 = results.length;
+        results = results.filter(disc => {
+          if (usedBaseNames.has(baseName(disc.rule.name))) {
+            console.log(`[Synthesis] FILTERED by same-rule check: "${disc.rule.name}"`);
+            return false;
+          }
+          return true;
+        });
+        if (results.length < before1) console.log(`[Synthesis] Same-rule filter removed ${before1 - results.length} disconnection(s)`);
+      }
+
+      // Filter 2: Don't offer disconnections whose precursor matches an ancestor step.
       // Exclude the last element — that's the current molecule being analyzed, not an ancestor.
       const ancestors = previousSteps.slice(0, -1);
       if (ancestors.length > 0) {
-        const before = results.length;
+        const before2 = results.length;
         results = results.filter(disc => {
           const blocked = ancestors.some((step, i) =>
             checkTopologicalIsomorphism(disc.precursor.atoms, disc.precursor.bonds, step.atoms, step.bonds)
@@ -92,10 +109,12 @@ export default function Synthesis() {
           if (blocked) console.log(`[Synthesis] FILTERED by ancestor check: "${disc.rule.name}"`);
           return !blocked;
         });
-        if (results.length < before) console.log(`[Synthesis] Ancestor filter removed ${before - results.length} disconnection(s)`);
+        if (results.length < before2) console.log(`[Synthesis] Ancestor filter removed ${before2 - results.length} disconnection(s)`);
       }
 
-      console.log(`[Synthesis] Found ${results.length} possible disconnections (${results.filter(d => d.verified).length} verified)`);
+      // Only show verified disconnections — unverified matches are likely false positives
+      results = results.filter(d => d.verified);
+      console.log(`[Synthesis] Found ${results.length} verified disconnections`);
       setDisconnections(results);
       setAnalyzing(false);
     }, 50);
@@ -114,7 +133,7 @@ export default function Synthesis() {
     const newSteps = [...steps, {
       atoms: precursor.atoms,
       bonds: precursor.bonds,
-      reagent: disc.rule.reagent,
+      reagent: disc.resolvedReagent || disc.rule.reagent,
       ruleName: disc.rule.name,
     }];
     setSteps(newSteps);
@@ -518,7 +537,7 @@ export default function Synthesis() {
                       <div style={{ width: 140, height: 140, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "0.5rem" }}>
                         <SetCanvas atoms={disc.precursor.atoms} bonds={disc.precursor.bonds} hideGrid size={140} />
                       </div>
-                      <div style={{ fontWeight: 700, color: "#5f021f", fontSize: "1.05rem" }}>{disc.rule.reagent}</div>
+                      <div style={{ fontWeight: 700, color: "#5f021f", fontSize: "1.05rem" }}>{disc.resolvedReagent || disc.rule.reagent}</div>
                       <div style={{ fontSize: "0.9rem", color: "#555", marginTop: 4 }}>{disc.rule.name}</div>
                       <div style={{ fontSize: "0.8rem", color: disc.verified ? "#1a6b3a" : "#c90", marginTop: 6, fontWeight: 600 }}>
                         {disc.verified ? "Verified ✓" : "Unverified"}
