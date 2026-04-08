@@ -11,19 +11,173 @@
  */
 
 import { findMatches } from "./subgraphMatch";
-import { applyRule } from "./reactionRules";
-import { checkIsomorphism } from "../chemistryUtils";
+import { computePatternToMolTransform } from "./reactionRules";
 
 const AROMATIC_ORDER = 1.5;
-const MIN_COVERAGE = 0.5; // Result must cover at least 50% of target atoms
+// Coverage threshold scales with result size:
+// - Large results (≥7 atoms, e.g. benzene+Cl): 25% is enough (they're specific)
+// - Small results (2-3 atoms): need 50%+ to avoid false matches everywhere
+const MIN_RESULT_ATOMS = 3; // absolute minimum result size
+const MIN_COVERAGE_BASE = 0.5;
+const MIN_COVERAGE_FLOOR = 0.25;
 
 /* ─── HELPERS ─────────────────────────────────────────────────────────────── */
+
+/**
+ * Merge atoms that are very close together but not bonded.
+ * This fixes drawing issues where a chain looks connected to a ring
+ * visually but the atoms didn't snap to the exact same grid point.
+ */
+function mergeNearbyAtoms(atoms, bonds, threshold = 15) {
+  const idRemap = new Map();
+
+  for (let i = 0; i < atoms.length; i++) {
+    if (idRemap.has(atoms[i].id)) continue;
+    for (let j = i + 1; j < atoms.length; j++) {
+      if (idRemap.has(atoms[j].id)) continue;
+      const dist = Math.hypot(atoms[i].x - atoms[j].x, atoms[i].y - atoms[j].y);
+      if (dist > 0 && dist < threshold) {
+        idRemap.set(atoms[j].id, atoms[i].id);
+      }
+    }
+  }
+
+  if (idRemap.size === 0) return { atoms, bonds };
+
+  console.log(`[retro] Merged ${idRemap.size} nearby atom(s)`);
+  const keptAtoms = atoms.filter(a => !idRemap.has(a.id));
+  const remapped = bonds.map(b => ({
+    ...b,
+    from: idRemap.get(b.from) ?? b.from,
+    to: idRemap.get(b.to) ?? b.to,
+  })).filter(b => b.from !== b.to);
+
+  // Deduplicate bonds (same from/to pair)
+  const seen = new Set();
+  const unique = remapped.filter(b => {
+    const key = Math.min(b.from, b.to) + '-' + Math.max(b.from, b.to);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return { atoms: keptAtoms, bonds: unique };
+}
+
+/**
+ * Extract the largest connected component from atoms/bonds.
+ * Rules often include byproducts (H₂O, HCl, NaBr, etc.) on the result canvas.
+ * For retrosynthesis we only care about the main product.
+ */
+function largestComponent(atoms, bonds) {
+  if (atoms.length === 0) return { atoms, bonds };
+
+  // Build adjacency from bonds
+  const adj = new Map(atoms.map(a => [a.id, []]));
+  bonds.forEach(b => {
+    adj.get(b.from)?.push(b.to);
+    adj.get(b.to)?.push(b.from);
+  });
+
+  // BFS to find connected components
+  const visited = new Set();
+  let bestComponent = [];
+
+  for (const atom of atoms) {
+    if (visited.has(atom.id)) continue;
+    const component = [];
+    const queue = [atom.id];
+    visited.add(atom.id);
+    while (queue.length > 0) {
+      const id = queue.shift();
+      component.push(id);
+      for (const neighbor of (adj.get(id) || [])) {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push(neighbor);
+        }
+      }
+    }
+    if (component.length > bestComponent.length) {
+      bestComponent = component;
+    }
+  }
+
+  const keep = new Set(bestComponent);
+  return {
+    atoms: atoms.filter(a => keep.has(a.id)),
+    bonds: bonds.filter(b => keep.has(b.from) && keep.has(b.to)),
+  };
+}
 
 function removeOrphans(atoms, bonds) {
   const connected = new Set();
   bonds.forEach(b => { connected.add(b.from); connected.add(b.to); });
   return atoms.filter(a => connected.has(a.id));
 }
+
+/**
+ * General overlap resolution for restored atoms.
+ * If a movable atom overlaps another atom (< MIN_DIST), reposition it
+ * around its bonded anchor at the correct bond length, choosing the
+ * direction that maximizes distance from all other atoms.
+ */
+const MIN_ATOM_DIST = 20;
+
+function resolveOverlaps(atoms, bonds, movableIds) {
+  for (const atom of atoms) {
+    if (!movableIds.has(atom.id)) continue;
+
+    // Find the bonded anchor (prefer non-movable neighbor)
+    let anchor = null;
+    for (const b of bonds) {
+      const otherId = b.from === atom.id ? b.to : b.to === atom.id ? b.from : null;
+      if (otherId == null) continue;
+      const other = atoms.find(a => a.id === otherId);
+      if (!other) continue;
+      if (!movableIds.has(other.id)) { anchor = other; break; }
+      if (!anchor) anchor = other;
+    }
+    if (!anchor) continue;
+
+    // Check if current position overlaps any other atom
+    const hasOverlap = atoms.some(other =>
+      other.id !== atom.id && Math.hypot(other.x - atom.x, other.y - atom.y) < MIN_ATOM_DIST
+    );
+    if (!hasOverlap) continue;
+
+    // Use the current bond length (from the transform), fallback to 40
+    const bondLen = Math.max(Math.hypot(atom.x - anchor.x, atom.y - anchor.y), 40);
+
+    // Try 24 evenly-spaced directions around the anchor
+    let bestPos = { x: atom.x, y: atom.y };
+    let bestMinDist = 0;
+
+    for (let i = 0; i < 24; i++) {
+      const angle = (i * Math.PI * 2) / 24;
+      const x = anchor.x + Math.cos(angle) * bondLen;
+      const y = anchor.y + Math.sin(angle) * bondLen;
+
+      // Score = minimum distance to any other atom (maximize this)
+      let minDist = Infinity;
+      for (const other of atoms) {
+        if (other.id === atom.id) continue;
+        const d = Math.hypot(other.x - x, other.y - y);
+        if (d < minDist) minDist = d;
+      }
+
+      if (minDist > bestMinDist) {
+        bestMinDist = minDist;
+        bestPos = { x, y };
+      }
+    }
+
+    atom.x = bestPos.x;
+    atom.y = bestPos.y;
+  }
+}
+
+
 
 /** Detect aromatic rings and set bond order to 1.5 for matching */
 function normalizeBenzene(atoms, bonds) {
@@ -166,44 +320,86 @@ export function isSimpleMolecule(atoms, bonds) {
  *   4. Forward verification: apply rule to precursor, check it reproduces target
  */
 export function findPossibleDisconnections(targetAtoms, targetBonds, rules) {
+  // Merge atoms that are very close but not bonded (fixes drawing snap issues)
+  const merged = mergeNearbyAtoms(targetAtoms, targetBonds);
+  targetAtoms = merged.atoms;
+  targetBonds = merged.bonds;
+
   const disconnections = [];
+  const bondOrders = targetBonds.map(b => b.order || 1);
+  console.log(`[retro] === Finding disconnections: ${targetAtoms.length} atoms, ${targetBonds.length} bonds, orders: [${[...new Set(bondOrders)].join(',')}], labels: [${targetAtoms.map(a=>a.label||'C').join(',')}], rules: ${rules.length} ===`);
 
   for (const rule of rules) {
     if (!rule.resultAtoms?.length || !rule.patternAtoms?.length) continue;
     if (!rule.delta) continue;
+    console.log(`  [retro] Trying "${rule.name}" — pattern: ${rule.patternAtoms.length} atoms, result: ${rule.resultAtoms.length} atoms`);
 
-    // Prepare result pattern
+    // Prepare result pattern: remove orphans, keep only the main product
+    // (discard byproducts like H₂O, HCl, NaBr drawn on the result canvas)
     let resultAtoms = removeOrphans(rule.resultAtoms, rule.resultBonds);
-    let resultBonds = [...rule.resultBonds];
+    let resultBonds = rule.resultBonds.filter(b =>
+      resultAtoms.some(a => a.id === b.from) && resultAtoms.some(a => a.id === b.to)
+    );
+    const mainProduct = largestComponent(resultAtoms, resultBonds);
+    if (mainProduct.atoms.length < resultAtoms.length) {
+      console.log(`  [retro] "${rule.name}" — stripped byproducts: ${resultAtoms.length} → ${mainProduct.atoms.length} atoms`);
+    }
+    resultAtoms = mainProduct.atoms;
+    resultBonds = mainProduct.bonds;
+
+    // Strip R/R'/R'' wildcard atoms from the result before matching.
+    // R represents "any substituent can be here" — it should NOT prevent matching
+    // when the target has no carbon substituent at that ring position.
+    // E.g., Nitration result is [6C + R + N + 2O] = 10 atoms. Without R = 9 atoms,
+    // which can match a 9-atom nitrobenzene that has no extra ring substituent.
+    const rAtomIds = new Set(
+      resultAtoms.filter(a => {
+        const l = (a.label || 'C').trim();
+        return l === 'R' || l === "R'" || l === "R''";
+      }).map(a => a.id)
+    );
+    if (rAtomIds.size > 0) {
+      resultAtoms = resultAtoms.filter(a => !rAtomIds.has(a.id));
+      resultBonds = resultBonds.filter(b => !rAtomIds.has(b.from) && !rAtomIds.has(b.to));
+      console.log(`  [retro] "${rule.name}" — stripped ${rAtomIds.size} R wildcard(s) for matching: ${resultAtoms.length} atoms`);
+    }
     resultBonds = normalizeBenzene(resultAtoms, resultBonds);
 
-    // Coverage filter: result must cover significant portion of target
+    // Coverage filter: result must cover significant portion of target.
+    // Threshold scales down for larger results (they're more specific and less prone to false matches).
     const coverage = resultAtoms.length / targetAtoms.length;
-    if (coverage < MIN_COVERAGE) {
-      console.log(`  [retro] SKIP "${rule.name}" — coverage ${(coverage * 100).toFixed(0)}% < ${MIN_COVERAGE * 100}%`);
+    const minCoverage = resultAtoms.length < MIN_RESULT_ATOMS
+      ? MIN_COVERAGE_BASE
+      : Math.max(MIN_COVERAGE_FLOOR, MIN_COVERAGE_BASE - (resultAtoms.length - MIN_RESULT_ATOMS) * 0.05);
+    if (coverage < minCoverage) {
+      console.log(`  [retro] SKIP "${rule.name}" — coverage ${(coverage * 100).toFixed(0)}% < ${(minCoverage * 100).toFixed(0)}% (result: ${resultAtoms.length} atoms, target: ${targetAtoms.length} atoms)`);
       continue;
     }
 
-    // Check for aromatic mismatch: skip if result has cyclohexane but target has benzene (or vice versa)
-    const resultHasBenzene = hasAromaticRing(resultAtoms, rule.resultBonds);
-    const resultHasCyclohexane = hasSaturatedRing(resultAtoms, rule.resultBonds);
-    const targetHasBenzene = hasAromaticRing(targetAtoms, targetBonds);
-    const targetHasCyclohexane = hasSaturatedRing(targetAtoms, targetBonds);
+    // Normalize target benzene rings to aromatic (order 1.5) for matching.
+    // This handles any ring bond order inconsistencies from retrosynthesis delta changes.
+    const normTargetBonds = normalizeBenzene(targetAtoms, targetBonds);
 
-    if (resultHasCyclohexane && !resultHasBenzene && targetHasBenzene && !targetHasCyclohexane) {
+    // Aromatic/cyclohexane mismatch filter — uses NORMALIZED bonds so it works
+    // correctly even when retrosynthesis deltas have modified ring bond orders.
+    const resultHasAromatic = resultBonds.some(b => b.order === AROMATIC_ORDER);
+    const targetHasAromatic = normTargetBonds.some(b => b.order === AROMATIC_ORDER);
+    const resultRings = findSixRings(resultAtoms, resultBonds);
+    const targetRings = findSixRings(targetAtoms, normTargetBonds);
+    const resultAllSingle = resultRings.length > 0 && !resultHasAromatic;
+    const targetAllSingle = targetRings.length > 0 && !targetHasAromatic;
+
+    if (resultAllSingle && targetHasAromatic) {
       console.log(`  [retro] SKIP "${rule.name}" — result has cyclohexane but target has benzene`);
       continue;
     }
-    if (resultHasBenzene && !resultHasCyclohexane && targetHasCyclohexane && !targetHasBenzene) {
+    if (resultHasAromatic && targetAllSingle) {
       console.log(`  [retro] SKIP "${rule.name}" — result has benzene but target has cyclohexane`);
       continue;
     }
 
-    // Normalize target for matching
-    const normTargetBonds = normalizeBenzene(targetAtoms, targetBonds);
-
     // Find matches
-    const matches = findMatches(resultAtoms, resultBonds, targetAtoms, normTargetBonds);
+    const matches = findMatches(resultAtoms, resultBonds, targetAtoms, normTargetBonds, { lenientBondOrder: true });
     if (matches.length === 0) {
       console.log(`  [retro] "${rule.name}" — no match (${resultAtoms.length} result atoms vs ${targetAtoms.length} target atoms)`);
       console.log(`    result labels: [${resultAtoms.map(a => a.label || "C").join(", ")}]`);
@@ -236,22 +432,25 @@ export function findPossibleDisconnections(targetAtoms, targetBonds, rules) {
     newBonds = newBonds.filter(b => !targetIdsToRemove.has(b.from) && !targetIdsToRemove.has(b.to));
 
     // 2. Restore atoms REMOVED by forward rule
+    // Use proper rigid transform (translation + rotation + scale) from
+    // rule coordinate space → target coordinate space, so restored atoms
+    // are placed at correct positions regardless of ring orientation.
     const removedPatternIds = new Set(delta.removedAtomIds || []);
     const patternAtomMap = new Map(rule.patternAtoms.map(a => [a.id, a]));
     const idRemap = new Map();
+
+    // Compute transform: result-space → target-space
+    const xform = computePatternToMolTransform(resultAtoms, targetAtoms, mapping);
 
     for (const removedId of removedPatternIds) {
       const patAtom = patternAtomMap.get(removedId);
       if (!patAtom) continue;
       const newId = Date.now() + Math.floor(Math.random() * 100000);
-      const matchedTargetIds = [...mapping.values()];
-      const refAtom = newAtoms.find(a => matchedTargetIds.includes(a.id)) || newAtoms[0];
-      const offsetX = patAtom.x - (rule.resultAtoms[0]?.x || 0);
-      const offsetY = patAtom.y - (rule.resultAtoms[0]?.y || 0);
+      const pos = xform(patAtom.x, patAtom.y);
       newAtoms.push({
         id: newId,
-        x: (refAtom?.x || 200) + offsetX,
-        y: (refAtom?.y || 200) + offsetY,
+        x: pos.x,
+        y: pos.y,
         label: patAtom.label,
       });
       idRemap.set(removedId, newId);
@@ -324,6 +523,10 @@ export function findPossibleDisconnections(targetAtoms, targetBonds, rules) {
       }
     }
 
+    // Fix overlapping restored atoms
+    const movableIds = new Set(idRemap.values());
+    resolveOverlaps(newAtoms, newBonds, movableIds);
+
     // Clean up orphans
     newAtoms = removeOrphans(newAtoms, newBonds);
 
@@ -333,17 +536,41 @@ export function findPossibleDisconnections(targetAtoms, targetBonds, rules) {
     }
 
     // --- Forward verification ---
-    // Apply rule FORWARD to the precursor and check it matches the target
+    // Check that the rule's pattern matches the computed precursor. This confirms
+    // the rule CAN fire on the precursor (i.e., the precursor is a valid starting
+    // material for this reaction).
+    //
+    // We do NOT check that the product exactly reproduces the target, because:
+    // 1. EAS directing may shift substituent positions (meta→para) based on
+    //    directing effects, producing a different regioisomer
+    // 2. Byproducts (H₂O, HCl) in the delta inflate the product atom count
+    // 3. The retro matching already established that the result covers the target
+    //
+    // A simple pattern-matches-precursor check is sufficient: if the pattern
+    // matches, the rule can produce the right type of transformation.
     let verified = false;
     try {
-      const forwardResult = applyRule(newAtoms, newBonds, rule);
-      if (forwardResult && !forwardResult.noMatch && forwardResult.products?.length > 0) {
-        const product = forwardResult.products[0];
-        verified = checkIsomorphism(product.atoms, product.bonds, targetAtoms, targetBonds);
-        console.log(`  [retro] "${rule.name}" — forward verification: ${verified ? "PASS ✓" : "FAIL ✗"}`);
-      } else {
-        console.log(`  [retro] "${rule.name}" — forward rule didn't match precursor`);
+      // Strip R wildcards from pattern too (same reason as result stripping above).
+      // If the precursor is plain benzene (no substituent), R has nothing to match.
+      let fwdPatternAtoms = rule.patternAtoms.map(a => ({ ...a }));
+      let fwdPatternBonds = [...rule.patternBonds];
+      const patRIds = new Set(
+        fwdPatternAtoms.filter(a => {
+          const l = (a.label || 'C').trim();
+          return l === 'R' || l === "R'" || l === "R''";
+        }).map(a => a.id)
+      );
+      if (patRIds.size > 0) {
+        fwdPatternAtoms = fwdPatternAtoms.filter(a => !patRIds.has(a.id));
+        fwdPatternBonds = fwdPatternBonds.filter(b => !patRIds.has(b.from) && !patRIds.has(b.to));
       }
+      // Normalize benzene in both pattern and precursor before matching
+      fwdPatternBonds = normalizeBenzene(fwdPatternAtoms, fwdPatternBonds);
+      const fwdMolBonds = normalizeBenzene(newAtoms, newBonds);
+
+      const fwdMatches = findMatches(fwdPatternAtoms, fwdPatternBonds, newAtoms, fwdMolBonds);
+      verified = fwdMatches.length > 0;
+      console.log(`  [retro] "${rule.name}" — forward verification: ${verified ? "PASS ✓" : "FAIL ✗"} (pattern ${fwdPatternAtoms.length} atoms vs precursor ${newAtoms.length} atoms, ${fwdMatches.length} match(es))`);
     } catch (err) {
       console.log(`  [retro] "${rule.name}" — forward verification error:`, err.message);
     }

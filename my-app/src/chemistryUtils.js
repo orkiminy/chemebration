@@ -96,6 +96,63 @@ function rawIsomorphism(userAtoms, userBonds, solutionAtoms, solutionBonds) {
   return JSON.stringify(userFingerprint) === JSON.stringify(solFingerprint);
 }
 
+/**
+ * Lenient isomorphism: ignores bond order and style, checks only
+ * atom labels and connectivity (topology). Used by retrosynthesis
+ * forward verification where benzene normalization can cause
+ * bond-order mismatches between target and reproduced product.
+ */
+export function checkTopologicalIsomorphism(userAtoms, userBonds, solutionAtoms, solutionBonds) {
+  if (userAtoms.length !== solutionAtoms.length) return false;
+  if (userBonds.length !== solutionBonds.length) return false;
+
+  function buildTopGraph(atoms, bonds) {
+    const adjList = new Map();
+    atoms.forEach(atom => {
+      adjList.set(atom.id, { label: atom.label || "C", connections: [] });
+    });
+    bonds.forEach(bond => {
+      const fromNode = adjList.get(bond.from);
+      const toNode = adjList.get(bond.to);
+      if (fromNode && toNode) {
+        fromNode.connections.push({ neighborId: bond.to });
+        toNode.connections.push({ neighborId: bond.from });
+      }
+    });
+    return adjList;
+  }
+
+  function getSignatures(graph) {
+    let currentSigs = new Map();
+    for (const [id, node] of graph.entries()) {
+      currentSigs.set(id, node.label);
+    }
+    const refine = (sigs) => {
+      const nextSigs = new Map();
+      for (const [id, node] of graph.entries()) {
+        const neighborSigs = node.connections.map(conn => sigs.get(conn.neighborId)).sort().join("|");
+        nextSigs.set(id, `[${node.label}:${neighborSigs}]`);
+      }
+      return nextSigs;
+    };
+    for (let i = 0; i < 4; i++) {
+      currentSigs = refine(currentSigs);
+    }
+    return Array.from(currentSigs.values()).sort();
+  }
+
+  const uGraph = buildTopGraph(userAtoms, userBonds);
+  const sGraph = buildTopGraph(solutionAtoms, solutionBonds);
+  if (JSON.stringify(getSignatures(uGraph)) === JSON.stringify(getSignatures(sGraph))) return true;
+
+  // Try with OH normalization
+  const u = normalizeOH(userAtoms, userBonds);
+  const s = normalizeOH(solutionAtoms, solutionBonds);
+  const uGraph2 = buildTopGraph(u.atoms, u.bonds);
+  const sGraph2 = buildTopGraph(s.atoms, s.bonds);
+  return JSON.stringify(getSignatures(uGraph2)) === JSON.stringify(getSignatures(sGraph2));
+}
+
 export function checkIsomorphism(userAtoms, userBonds, solutionAtoms, solutionBonds) {
   // Try direct match first
   if (rawIsomorphism(userAtoms, userBonds, solutionAtoms, solutionBonds)) return true;

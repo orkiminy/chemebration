@@ -36,7 +36,7 @@ const HALOGENS = ['Br', 'Cl', 'F', 'I'];
  * that maps pattern atom positions → matched molecule atom positions.
  * Returns a function (x, y) → {x, y}.
  */
-function computePatternToMolTransform(patternAtoms, molAtoms, mapping) {
+export function computePatternToMolTransform(patternAtoms, molAtoms, mapping) {
   const pairs = [];
   for (const [patId, molId] of mapping) {
     const p = patternAtoms.find(a => a.id === patId);
@@ -52,20 +52,15 @@ function computePatternToMolTransform(patternAtoms, molAtoms, mapping) {
     return (x, y) => ({ x: x + dx, y: y + dy });
   }
 
-  // Closed-form least-squares: m = a*p - b*p_perp + t
-  // where a = s·cos θ, b = s·sin θ
   const n = pairs.length;
   const px_mean = pairs.reduce((s, { p }) => s + p.x, 0) / n;
   const py_mean = pairs.reduce((s, { p }) => s + p.y, 0) / n;
   const mx_mean = pairs.reduce((s, { m }) => s + m.x, 0) / n;
   const my_mean = pairs.reduce((s, { m }) => s + m.y, 0) / n;
 
-  let num_a = 0, num_b = 0, denom = 0;
-  for (const { p, m } of pairs) {
+  let denom = 0;
+  for (const { p } of pairs) {
     const cpx = p.x - px_mean, cpy = p.y - py_mean;
-    const cmx = m.x - mx_mean, cmy = m.y - my_mean;
-    num_a += cpx * cmx + cpy * cmy;
-    num_b += cpx * cmy - cpy * cmx;
     denom += cpx * cpx + cpy * cpy;
   }
 
@@ -74,18 +69,58 @@ function computePatternToMolTransform(patternAtoms, molAtoms, mapping) {
     return (x, y) => ({ x: x + dx, y: y + dy });
   }
 
-  const a = num_a / denom;
-  const b = num_b / denom;
-  const tx = mx_mean - (a * px_mean - b * py_mean);
-  const ty = my_mean - (b * px_mean + a * py_mean);
+  // Fit both a regular transform (rotation+scale) and a reflected one,
+  // then pick whichever has lower residual error.
+  // Regular:  x' = a*x - b*y + tx,  y' = b*x + a*y + ty
+  // Reflected: x' = a*x + b*y + tx,  y' = b*x - a*y + ty  (mirror across x before rotate)
 
-  return (x, y) => ({ x: a * x - b * y + tx, y: b * x + a * y + ty });
+  // Regular least-squares
+  let rA = 0, rB = 0;
+  for (const { p, m } of pairs) {
+    const cpx = p.x - px_mean, cpy = p.y - py_mean;
+    const cmx = m.x - mx_mean, cmy = m.y - my_mean;
+    rA += cpx * cmx + cpy * cmy;
+    rB += cpx * cmy - cpy * cmx;
+  }
+  const a1 = rA / denom, b1 = rB / denom;
+  const tx1 = mx_mean - (a1 * px_mean - b1 * py_mean);
+  const ty1 = my_mean - (b1 * px_mean + a1 * py_mean);
+
+  // Reflected least-squares (flip y of pattern before fitting)
+  let fA = 0, fB = 0;
+  for (const { p, m } of pairs) {
+    const cpx = p.x - px_mean, cpy = -(p.y - py_mean); // flip y
+    const cmx = m.x - mx_mean, cmy = m.y - my_mean;
+    fA += cpx * cmx + cpy * cmy;
+    fB += cpx * cmy - cpy * cmx;
+  }
+  const a2 = fA / denom, b2 = fB / denom;
+  const tx2 = mx_mean - (a2 * px_mean + b2 * py_mean);
+  const ty2 = my_mean - (b2 * px_mean - a2 * py_mean);
+
+  // Compute residual errors
+  let err1 = 0, err2 = 0;
+  for (const { p, m } of pairs) {
+    const r1x = a1 * p.x - b1 * p.y + tx1;
+    const r1y = b1 * p.x + a1 * p.y + ty1;
+    err1 += (r1x - m.x) ** 2 + (r1y - m.y) ** 2;
+
+    const r2x = a2 * p.x + b2 * p.y + tx2;
+    const r2y = b2 * p.x - a2 * p.y + ty2;
+    err2 += (r2x - m.x) ** 2 + (r2y - m.y) ** 2;
+  }
+
+  if (err2 < err1 - 1e-6) {
+    // Reflected transform is a better fit
+    return (x, y) => ({ x: a2 * x + b2 * y + tx2, y: b2 * x - a2 * y + ty2 });
+  }
+  return (x, y) => ({ x: a1 * x - b1 * y + tx1, y: b1 * x + a1 * y + ty1 });
 }
 
 /**
  * Snap a position to the nearest point on the triangular grid used by the canvases.
  */
-function snapToGrid(x, y) {
+export function snapToGrid(x, y) {
   const rowH = GRID_SPACING * Math.sin(Math.PI / 3);
   const nearRow = Math.round(y / rowH);
   let best = null;
@@ -831,6 +866,11 @@ export function applyRule(molAtoms, molBonds, rule) {
   const delta = {
     ...rule.delta,
     addedAtoms: (rule.delta.addedAtoms || []).map(a => ({ ...a, label: resolveLabel(a.label || 'C') })),
+    // Deep-copy addedBonds so adjustEASDirecting mutations don't corrupt rule.delta
+    addedBonds: (rule.delta.addedBonds || []).map(b => ({ ...b })),
+    changedBonds: (rule.delta.changedBonds || []).map(b => ({ ...b })),
+    removedBonds: (rule.delta.removedBonds || []).map(b => ({ ...b })),
+    newKeptBonds: (rule.delta.newKeptBonds || []).map(b => ({ ...b })),
     _removedLabels: removedLabels,
   };
 

@@ -83,7 +83,7 @@ function computeRGroupCaptures(p2m, patternAtoms, molAdj) {
  * Returns an array of Maps: patternAtomId → molAtomId.
  * Returns [] if no match found.
  */
-export function findMatches(patternAtoms, patternBonds, molAtoms, molBonds) {
+export function findMatches(patternAtoms, patternBonds, molAtoms, molBonds, { lenientBondOrder = false } = {}) {
   if (patternAtoms.length === 0) return [{ mapping: new Map(), rGroupCaptures: new Map() }];
 
   const patAdj = buildAdj(patternAtoms, patternBonds);
@@ -121,6 +121,7 @@ export function findMatches(patternAtoms, patternBonds, molAtoms, molBonds) {
         const patOrder = norm(edge.order);
         const molEdge = (molAdj.get(molAtom.id) || []).find(e => {
           if (e.neighbor !== mappedNeighbor) return false;
+          if (lenientBondOrder) return true; // topology-only matching for retrosynthesis
           const molOrder = norm(e.order);
           if (patOrder === AROMATIC_ORDER) return molOrder === 1 || molOrder === 2 || molOrder === AROMATIC_ORDER;
           if (molOrder === AROMATIC_ORDER) return patOrder === 1 || patOrder === 2;

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { atomFill, atomTextColor, atomRadius } from "../engine/atomColors";
 import { loadRules } from "../engine/reactionRules";
 import { findPossibleDisconnections, isSimpleMolecule } from "../engine/retroSynthesis";
+import { checkTopologicalIsomorphism } from "../chemistryUtils";
 import SetCanvas from "../setCanvas";
 import "../App.css";
 
@@ -67,16 +68,33 @@ export default function Synthesis() {
     loadRules().then(r => {
       console.log(`[Synthesis] Loaded ${r.length} rules`);
       setRules(r);
+      window.__DEBUG_RULES__ = r; // for test-retro.mjs debugging
     });
   }, []);
 
-  const handleFindDisconnections = (targetAtoms, targetBonds) => {
+  const handleFindDisconnections = (targetAtoms, targetBonds, previousSteps = []) => {
     setAnalyzing(true);
     setDisconnections([]);
 
     setTimeout(() => {
       console.log(`[Synthesis] Finding disconnections for ${targetAtoms.length} atoms, ${targetBonds.length} bonds`);
-      const results = findPossibleDisconnections(targetAtoms, targetBonds, rules);
+      let results = findPossibleDisconnections(targetAtoms, targetBonds, rules);
+
+      // Filter out disconnections whose precursor matches an ancestor step (prevents cycles).
+      // Exclude the last element — that's the current molecule being analyzed, not an ancestor.
+      const ancestors = previousSteps.slice(0, -1);
+      if (ancestors.length > 0) {
+        const before = results.length;
+        results = results.filter(disc => {
+          const blocked = ancestors.some((step, i) =>
+            checkTopologicalIsomorphism(disc.precursor.atoms, disc.precursor.bonds, step.atoms, step.bonds)
+          );
+          if (blocked) console.log(`[Synthesis] FILTERED by ancestor check: "${disc.rule.name}"`);
+          return !blocked;
+        });
+        if (results.length < before) console.log(`[Synthesis] Ancestor filter removed ${before - results.length} disconnection(s)`);
+      }
+
       console.log(`[Synthesis] Found ${results.length} possible disconnections (${results.filter(d => d.verified).length} verified)`);
       setDisconnections(results);
       setAnalyzing(false);
@@ -107,7 +125,7 @@ export default function Synthesis() {
       setPathComplete(true);
       setDisconnections([]);
     } else {
-      handleFindDisconnections(precursor.atoms, precursor.bonds);
+      handleFindDisconnections(precursor.atoms, precursor.bonds, newSteps);
     }
   };
 
@@ -118,7 +136,7 @@ export default function Synthesis() {
     setSteps(newSteps);
     setCurrentTarget(prev);
     setPathComplete(false);
-    handleFindDisconnections(prev.atoms, prev.bonds);
+    handleFindDisconnections(prev.atoms, prev.bonds, newSteps);
   };
 
   const handleReset = () => {
