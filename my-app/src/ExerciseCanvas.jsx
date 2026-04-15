@@ -15,6 +15,48 @@ import { useAuth } from './contexts/AuthContext';
 
 const ROW_H = 40 * Math.sin(Math.PI / 3);
 
+// --- Question type randomization helpers ---
+// Reagents that are trivial (no structural molecule) and should NOT be asked as a reagent question
+const TRIVIAL_REAGENTS = new Set(["heat", "hv", "light", "δ", "", "h+", "h⁺", "h3o+", "h₃o⁺"]);
+
+function normalizeReagentText(s) {
+  const subs = "₀₁₂₃₄₅₆₇₈₉";
+  return String(s ?? "")
+    .toLowerCase()
+    .replace(/[₀-₉]/g, (d) => String(subs.indexOf(d)))
+    .replace(/\s+/g, "")
+    .replace(/[,+]/g, "/");
+}
+
+function isTrivialReagent(s) {
+  return TRIVIAL_REAGENTS.has(normalizeReagentText(s));
+}
+
+function checkReagentMatch(userInput, expected) {
+  const u = normalizeReagentText(userInput);
+  const e = normalizeReagentText(expected);
+  return u.length > 0 && u === e;
+}
+
+function pickQuestionType(level) {
+  if (!level) return "product";
+  // Multi-step levels keep the current product-only flow
+  if (level.multiStep) return "product";
+
+  const hasReactant = !!(level.question && level.question.atoms && level.question.atoms.length);
+  const hasProduct = !!((level.solutions && level.solutions.length) || level.solution);
+  const reagentOk = !!level.reagents && !isTrivialReagent(level.reagents);
+
+  const choices = [];
+  if (hasReactant && hasProduct) {
+    choices.push("product");
+    choices.push("reactant");
+    if (reagentOk) choices.push("reagent");
+  }
+  if (choices.length === 0) return "product";
+  return choices[Math.floor(Math.random() * choices.length)];
+}
+
 // Pointy-top hexagon (vertex at top), grid-aligned, double bonds on left
 const RING_TEMPLATES = {
   benzene: {
@@ -91,6 +133,10 @@ export default function ExerciseCanvas({ exerciseType = "OneStepReaction", chapt
   const [answerProducts, setAnswerProducts] = useState([]);
   const [answerEnantiomerIndex, setAnswerEnantiomerIndex] = useState(0);
 
+  // Question type: "product" (draw product), "reactant" (draw reactant), or "reagent" (type reagent text)
+  const [questionType, setQuestionType] = useState("product");
+  const [reagentInput, setReagentInput] = useState("");
+
   // Drawing helpers
   const [history, setHistory] = useState([]);
   const [future, setFuture] = useState([]);
@@ -114,11 +160,18 @@ const { user } = useAuth();
     }
   }, [filteredLevels.length]);
 
-  /* Clear feedback when user modifies canvas */
+  /* Clear feedback when user modifies canvas or reagent input */
   useEffect(() => {
     if (feedback) setFeedback(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [atoms, bonds]);
+  }, [atoms, bonds, reagentInput]);
+
+  /* Pick a new question type whenever the current level changes */
+  useEffect(() => {
+    setQuestionType(pickQuestionType(currentLevel));
+    setReagentInput("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [levelIndex, currentLevel?.id]);
 
 
   /* ---------- FIREBASE: PERSISTENCE LOGIC ---------- */
@@ -426,6 +479,21 @@ const { user } = useAuth();
       setShowAnswer(false);
       return;
     }
+    // Reagent question: the answer panel below renders the text directly
+    if (questionType === "reagent") {
+      setAnswerProducts([]);
+      setAnswerEnantiomerIndex(0);
+      setShowAnswer(true);
+      return;
+    }
+    // Reactant question: the answer is the stored reactant structure
+    if (questionType === "reactant") {
+      setAnswerProducts(currentLevel.question ? [currentLevel.question] : []);
+      setAnswerEnantiomerIndex(0);
+      setShowAnswer(true);
+      return;
+    }
+    // Product question (default)
     let products;
     if (currentLevel.multiStep && currentLevel.steps) {
       // For multi-step: show the current step's stored solution
@@ -455,6 +523,7 @@ const { user } = useAuth();
       setQuestionCount(nextCount);
       setAtoms([]);
       setBonds([]);
+      setReagentInput("");
       setFeedback(null);
       setCurrentStep(0);
       setIntermediateResult(null);
@@ -466,6 +535,22 @@ const { user } = useAuth();
   };
 
   const checkAnswer = () => {
+    // Reagent text question — checked separately, no drawing required
+    if (questionType === "reagent") {
+      if (!reagentInput.trim()) {
+        setFeedback({ type: "error", message: "Type the reagent first!" });
+        return;
+      }
+      if (checkReagentMatch(reagentInput, currentLevel.reagents)) {
+        setFeedback({ type: "success", message: "Correct! Next question..." });
+        advanceToNextQuestion();
+      } else {
+        setFeedback({ type: "error", message: "Incorrect reagent. Try again!" });
+        saveAttempt(false);
+      }
+      return;
+    }
+
     if (atoms.length === 0) {
       setFeedback({ type: "error", message: "Draw your answer first!" });
       return;
@@ -497,10 +582,15 @@ const { user } = useAuth();
       return;
     }
 
-    // Single-step question (unchanged)
+    // Single-step question
     let possibleSolutions = [];
-    if (currentLevel.solutions) possibleSolutions = currentLevel.solutions;
-    else if (currentLevel.solution) possibleSolutions = [currentLevel.solution];
+    if (questionType === "reactant") {
+      // Student drew the reactant — compare against currentLevel.question
+      if (currentLevel.question) possibleSolutions = [currentLevel.question];
+    } else {
+      if (currentLevel.solutions) possibleSolutions = currentLevel.solutions;
+      else if (currentLevel.solution) possibleSolutions = [currentLevel.solution];
+    }
 
     // Clean up any ghost atoms (orphans with no bonds) before comparing
     const connectedIds = new Set();
@@ -587,31 +677,76 @@ const { user } = useAuth();
         </div>
       )}
 
-      <div className="exercise-layout">
-        {/* Given structure */}
+      {/* Question-type hint */}
+      {!currentLevel.multiStep && (
+        <div style={{ marginBottom: "0.75rem", fontStyle: "italic", color: "#5f021f" }}>
+          {questionType === "product" && "Draw the product of this reaction."}
+          {questionType === "reactant" && "Draw the reactant needed for this reaction."}
+          {questionType === "reagent" && "Type the reagent needed for this reaction."}
+        </div>
+      )}
+
+      <div
+        className="exercise-layout"
+        style={questionType === "reactant" ? { flexDirection: "row-reverse" } : undefined}
+      >
+        {/* LEFT static panel — reactant structure (product/reagent Q) or product structure (reactant Q) */}
         <div className="exercise-panel">
           <div className="exercise-panel-box">
-            <div className="exercise-panel-label">Reactant</div>
-            <SetCanvas atoms={currentLevel.question.atoms} bonds={currentLevel.question.bonds} />
+            <div className="exercise-panel-label">
+              {questionType === "reactant" ? "Product" : "Reactant"}
+            </div>
+            {questionType === "reactant"
+              ? (() => {
+                  const sol = (currentLevel.solutions && currentLevel.solutions[0]) || currentLevel.solution;
+                  return sol ? <SetCanvas atoms={sol.atoms} bonds={sol.bonds} /> : null;
+                })()
+              : <SetCanvas atoms={currentLevel.question.atoms} bonds={currentLevel.question.bonds} />
+            }
           </div>
         </div>
 
-        {/* Step 1 arrow */}
-        <div className="exercise-panel" style={{ display: "flex", alignItems: "center", justifyContent: "center", alignSelf: "center" }}>
-          <div className="exercise-panel-box">
-            <div className="exercise-panel-label">
-              {currentLevel.multiStep ? "Step 1" : "Reagent"}
-            </div>
-            <div style={{ padding: "10px" }}>
-              <ReactionArrow
-                key={`${currentLevel.id}-step0`}
-                text={currentLevel.multiStep && currentLevel.steps
-                  ? currentLevel.steps[0].reagents
-                  : currentLevel.reagents}
-              />
+        {/* MIDDLE panel — reagent arrow, OR text input when asking for reagent */}
+        {questionType === "reagent" ? (
+          <div className="exercise-panel" style={{ display: "flex", alignItems: "center", justifyContent: "center", alignSelf: "center" }}>
+            <div className="exercise-panel-box">
+              <div className="exercise-panel-label">Reagent</div>
+              <div style={{ padding: "20px", textAlign: "center", minWidth: 220 }}>
+                <input
+                  type="text"
+                  value={reagentInput}
+                  onChange={(e) => setReagentInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") checkAnswer(); }}
+                  placeholder="e.g. H2 / Pt"
+                  style={{ padding: "8px 10px", fontSize: "16px", width: "200px", border: "1px solid #ccc", borderRadius: 4 }}
+                  autoFocus
+                />
+                <div style={{ marginTop: 12, display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
+                  <button className="toolbar-btn toolbar-btn-check" onClick={checkAnswer}>Check Answer</button>
+                  <button className="toolbar-btn" style={{ opacity: 0.75 }} onClick={handleShowAnswer}>
+                    {showAnswer ? "Hide Answer" : "Show Answer"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="exercise-panel" style={{ display: "flex", alignItems: "center", justifyContent: "center", alignSelf: "center" }}>
+            <div className="exercise-panel-box">
+              <div className="exercise-panel-label">
+                {currentLevel.multiStep ? "Step 1" : "Reagent"}
+              </div>
+              <div style={{ padding: "10px" }}>
+                <ReactionArrow
+                  key={`${currentLevel.id}-step0`}
+                  text={currentLevel.multiStep && currentLevel.steps
+                    ? currentLevel.steps[0].reagents
+                    : currentLevel.reagents}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* For multi-step on step 2+: show intermediate + step 2 arrow before the drawing canvas */}
         {currentLevel.multiStep && currentStep > 0 && intermediateResult && (
@@ -636,10 +771,26 @@ const { user } = useAuth();
           </>
         )}
 
-        {/* Right: Editable canvas */}
+        {/* RIGHT panel (reagent mode): static product display */}
+        {questionType === "reagent" && (
+          <div className="exercise-panel">
+            <div className="exercise-panel-box">
+              <div className="exercise-panel-label">Product</div>
+              {(() => {
+                const sol = (currentLevel.solutions && currentLevel.solutions[0]) || currentLevel.solution;
+                return sol ? <SetCanvas atoms={sol.atoms} bonds={sol.bonds} /> : null;
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* RIGHT panel (product/reactant modes): editable drawing canvas */}
+        {questionType !== "reagent" && (
         <div className="exercise-panel">
           <div className="exercise-panel-box">
-            <div className="exercise-panel-label">Product</div>
+            <div className="exercise-panel-label">
+              {questionType === "reactant" ? "Reactant" : "Product"}
+            </div>
             <svg
               width={WIDTH}
               height={HEIGHT}
@@ -831,7 +982,16 @@ const { user } = useAuth();
               </div>
             </div>
         </div>
+        )}
       </div>
+
+      {/* Answer panel — reagent text variant */}
+      {showAnswer && questionType === "reagent" && (
+        <div style={{ marginTop: "1.5rem", borderTop: "2px solid #5f021f", paddingTop: "1rem" }}>
+          <span style={{ fontWeight: "bold", color: "#5f021f", marginRight: 8 }}>Correct Answer:</span>
+          <span style={{ fontSize: "1.1rem" }}>{currentLevel.reagents}</span>
+        </div>
+      )}
 
       {/* Answer panel — shown when Show Answer is clicked */}
       {showAnswer && answerProducts.length > 0 && (
