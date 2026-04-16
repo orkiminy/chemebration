@@ -45,7 +45,7 @@ export default function AuthPage() {
   };
 
   const containerStyle = {
-    backgroundColor: "#f9e1e8",
+    backgroundColor: "#e8eef1",
     minHeight: "100vh",
     display: "flex",
     flexDirection: "column",
@@ -54,7 +54,7 @@ export default function AuthPage() {
   };
 
   const headerStyle = {
-    backgroundColor: "#5f021f",
+    backgroundColor: "#1a3a4a",
     color: "white",
     width: "100%",
     textAlign: "center",
@@ -77,7 +77,7 @@ export default function AuthPage() {
   };
 
   const buttonStyle = {
-    backgroundColor: "#5f021f",
+    backgroundColor: "#1a3a4a",
     color: "white",
     border: "none",
     padding: "12px",
@@ -92,7 +92,7 @@ export default function AuthPage() {
       <div style={headerStyle}>CHEMEBRATION</div>
 
       <form style={formStyle} onSubmit={handleSubmit}>
-        <h2 style={{ color: "#5f021f", textAlign: "center", margin: 0 }}>
+        <h2 style={{ color: "#1a3a4a", textAlign: "center", margin: 0 }}>
           {isLogin ? "Welcome Back" : "Join the Celebration"}
         </h2>
 

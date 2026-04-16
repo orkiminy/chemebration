@@ -69,7 +69,7 @@ function MoleculeCanvas({ atoms, bonds, label, snapToGrid = true }) {
 
   return (
     <div style={{ textAlign: "center" }}>
-      {label && <div style={{ fontWeight: "bold", marginBottom: 4, color: "#5f021f", fontSize: "0.9rem" }}>{label}</div>}
+      {label && <div style={{ fontWeight: "bold", marginBottom: 4, color: "#1a3a4a", fontSize: "0.9rem" }}>{label}</div>}
       <svg
         width={WIDTH}
         height={HEIGHT}
@@ -174,7 +174,7 @@ export default function AnswerKey() {
     : level.solutions || (level.solution ? [level.solution] : []);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f9e1e8", fontFamily: "Arial, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#e8eef1", fontFamily: "Arial, sans-serif" }}>
       {/* Nav bar */}
       <nav className="exercise-nav">
         <Link to="/" className="exercise-nav-back">&larr; Back to Home</Link>
@@ -191,9 +191,9 @@ export default function AnswerKey() {
               onClick={() => setSelectedLevel(idx)}
               style={{
                 padding: "8px 16px",
-                border: idx === selectedLevel ? "2px solid #5f021f" : "1px solid #ccc",
+                border: idx === selectedLevel ? "2px solid #1a3a4a" : "1px solid #ccc",
                 borderRadius: 8,
-                background: idx === selectedLevel ? "#5f021f" : "#fff",
+                background: idx === selectedLevel ? "#1a3a4a" : "#fff",
                 color: idx === selectedLevel ? "#fff" : "#333",
                 cursor: "pointer",
                 fontWeight: idx === selectedLevel ? "bold" : "normal",
@@ -207,7 +207,7 @@ export default function AnswerKey() {
 
         {/* Question info */}
         <div style={{ background: "#fff", padding: 20, borderRadius: 12, marginBottom: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
-          <h2 style={{ color: "#5f021f", margin: "0 0 8px" }}>
+          <h2 style={{ color: "#1a3a4a", margin: "0 0 8px" }}>
             Q{selectedLevel + 1}: {level.title}
           </h2>
           <p style={{ margin: "0 0 4px", fontSize: "1.1rem" }}>

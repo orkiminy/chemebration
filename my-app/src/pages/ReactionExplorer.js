@@ -426,8 +426,8 @@ export default function ReactionExplorer() {
         <p style={{ color: "#666", marginBottom: "1.5rem" }}>
           Draw any molecule, type a reaction or reagent, and click <strong>Compute</strong> to see the product.
           <br />
-          <span style={{ color: "#5f021f", fontSize: "0.9rem" }}>
-            Tip: Click a bond <strong>twice</strong> for double bond, <strong>three times</strong> for triple bond. Rules must be added in <Link to="/rule-builder" style={{ color: "#5f021f" }}>Rule Builder</Link> first.
+          <span style={{ color: "#1a3a4a", fontSize: "0.9rem" }}>
+            Tip: Click a bond <strong>twice</strong> for double bond, <strong>three times</strong> for triple bond. Rules must be added in <Link to="/rule-builder" style={{ color: "#1a3a4a" }}>Rule Builder</Link> first.
           </span>
         </p>
 
@@ -620,13 +620,13 @@ export default function ReactionExplorer() {
           {/* Middle: reagent steps + arrow + compute */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", alignSelf: "center" }}>
             <div style={{ border: "1px solid #ccc", borderRadius: "8px", background: "#fff", minWidth: "200px" }}>
-              <div style={{ fontSize: "1.1rem", fontWeight: 700, textTransform: "uppercase", color: "#5f021f", padding: "8px 0", textAlign: "center", background: "#faf5f7", borderBottom: "1px solid #eee", borderRadius: "8px 8px 0 0" }}>Reagent</div>
+              <div style={{ fontSize: "1.1rem", fontWeight: 700, textTransform: "uppercase", color: "#1a3a4a", padding: "8px 0", textAlign: "center", background: "#faf5f7", borderBottom: "1px solid #eee", borderRadius: "8px 8px 0 0" }}>Reagent</div>
               <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px", alignItems: "stretch" }}>
 
                 {/* Numbered reagent steps */}
                 {reagentSteps.map((step, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ color: "#5f021f", fontWeight: "bold", fontSize: "0.9rem", minWidth: "20px" }}>{i + 1}.</span>
+                    <span style={{ color: "#1a3a4a", fontWeight: "bold", fontSize: "0.9rem", minWidth: "20px" }}>{i + 1}.</span>
                     <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
                       <input
                         type="text"
@@ -634,7 +634,7 @@ export default function ReactionExplorer() {
                         onChange={(e) => updateStep(i, toPlainDigits(e.target.value))}
                         onKeyDown={(e) => e.key === "Enter" && handleCompute()}
                         placeholder=""
-                        style={{ width: "100%", padding: "6px 8px 9px", border: "1.5px solid #5f021f", borderRadius: "5px", fontSize: "1.05rem", textAlign: "center", lineHeight: "1.6", color: "transparent", caretColor: "#5f021f", background: "white", boxSizing: "border-box" }}
+                        style={{ width: "100%", padding: "6px 8px 9px", border: "1.5px solid #1a3a4a", borderRadius: "5px", fontSize: "1.05rem", textAlign: "center", lineHeight: "1.6", color: "transparent", caretColor: "#1a3a4a", background: "white", boxSizing: "border-box" }}
                       />
                       <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.05rem", pointerEvents: "none", overflow: "hidden" }}>
                         <span style={{ whiteSpace: "nowrap", color: step ? "#000" : "#999" }}>
@@ -655,14 +655,14 @@ export default function ReactionExplorer() {
                 {/* Add step link */}
                 <div
                   onClick={addStep}
-                  style={{ color: "#5f021f", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, textAlign: "right", userSelect: "none", paddingRight: "4px" }}
+                  style={{ color: "#1a3a4a", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, textAlign: "right", userSelect: "none", paddingRight: "4px" }}
                 >+ Add Step</div>
 
                 {/* Reaction arrow */}
                 <div style={{ textAlign: "center", padding: "4px 0" }}>
                   <svg width="160" height="20" viewBox="0 0 160 20">
-                    <line x1="4" y1="10" x2="145" y2="10" stroke="#5f021f" strokeWidth="2.5" />
-                    <polygon points="145,5 160,10 145,15" fill="#5f021f" />
+                    <line x1="4" y1="10" x2="145" y2="10" stroke="#1a3a4a" strokeWidth="2.5" />
+                    <polygon points="145,5 160,10 145,15" fill="#1a3a4a" />
                   </svg>
                 </div>
 
@@ -737,7 +737,7 @@ export default function ReactionExplorer() {
                   return !v;
                 });
               }}
-              style={{ background: showFeedback ? "#5f021f" : "#f5e8eb", color: showFeedback ? "#fff" : "#5f021f", border: "1.5px solid #5f021f", borderRadius: "6px", padding: "7px 16px", fontSize: "0.9rem", cursor: "pointer", fontWeight: 600 }}
+              style={{ background: showFeedback ? "#1a3a4a" : "#f5e8eb", color: showFeedback ? "#fff" : "#1a3a4a", border: "1.5px solid #1a3a4a", borderRadius: "6px", padding: "7px 16px", fontSize: "0.9rem", cursor: "pointer", fontWeight: 600 }}
             >
               {showFeedback ? "✕ Close Report" : "📝 Report Wrong Answer"}
             </button>
@@ -746,8 +746,8 @@ export default function ReactionExplorer() {
 
         {/* Report Wrong Answer panel */}
         {showFeedback && (
-          <div style={{ marginTop: "0.75rem", border: "1.5px solid #5f021f", borderRadius: "10px", background: "#fff", padding: "1.25rem 1.5rem" }}>
-            <div style={{ fontWeight: 700, fontSize: "1.05rem", color: "#5f021f", marginBottom: "1rem" }}>
+          <div style={{ marginTop: "0.75rem", border: "1.5px solid #1a3a4a", borderRadius: "10px", background: "#fff", padding: "1.25rem 1.5rem" }}>
+            <div style={{ fontWeight: 700, fontSize: "1.05rem", color: "#1a3a4a", marginBottom: "1rem" }}>
               📝 Report Wrong Answer
             </div>
 
@@ -765,11 +765,11 @@ export default function ReactionExplorer() {
                 {/* Each step arrow + product */}
                 {productSteps.map((step, si) => (
                   <React.Fragment key={si}>
-                    <div style={{ textAlign: "center", fontSize: "0.82rem", color: "#5f021f", fontWeight: 600 }}>
+                    <div style={{ textAlign: "center", fontSize: "0.82rem", color: "#1a3a4a", fontWeight: 600 }}>
                       <div style={{ marginBottom: "4px" }}>{formatReagentDisplay(step.reagent)}</div>
                       <svg width="50" height="16" viewBox="0 0 50 16">
-                        <line x1="2" y1="8" x2="38" y2="8" stroke="#5f021f" strokeWidth="2" />
-                        <polygon points="38,4 50,8 38,12" fill="#5f021f" />
+                        <line x1="2" y1="8" x2="38" y2="8" stroke="#1a3a4a" strokeWidth="2" />
+                        <polygon points="38,4 50,8 38,12" fill="#1a3a4a" />
                       </svg>
                     </div>
                     <div style={{ textAlign: "center" }}>

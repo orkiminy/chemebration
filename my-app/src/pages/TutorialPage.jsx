@@ -73,7 +73,7 @@ export default function TutorialPage() {
           {STEPS.map((_, i) => (
             <div
               key={i}
-              style={{ ...styles.dot, background: i === step ? '#5f021f' : '#ddd' }}
+              style={{ ...styles.dot, background: i === step ? '#1a3a4a' : '#ddd' }}
             />
           ))}
         </div>
@@ -114,9 +114,9 @@ export default function TutorialPage() {
 function WelcomeIllustration() {
   return (
     <svg viewBox="0 0 200 120" width="200" height="120">
-      <circle cx="100" cy="55" r="38" fill="#f9e1e8" stroke="#5f021f" strokeWidth="2.5" />
-      <text x="100" y="62" textAnchor="middle" fontSize="28" fill="#5f021f" fontWeight="bold">⚗️</text>
-      <text x="100" y="108" textAnchor="middle" fontSize="13" fill="#5f021f" fontWeight="bold">CHEMEBRATION</text>
+      <circle cx="100" cy="55" r="38" fill="#e8eef1" stroke="#1a3a4a" strokeWidth="2.5" />
+      <text x="100" y="62" textAnchor="middle" fontSize="28" fill="#1a3a4a" fontWeight="bold">⚗️</text>
+      <text x="100" y="108" textAnchor="middle" fontSize="13" fill="#1a3a4a" fontWeight="bold">CHEMEBRATION</text>
     </svg>
   );
 }
@@ -129,19 +129,19 @@ function AtomToolbarIllustration() {
         <g key={a}>
           <rect
             x={4 + i * 43} y="8" width="38" height="38" rx="6"
-            fill={i === 0 ? '#5f021f' : '#f9e1e8'}
-            stroke="#5f021f" strokeWidth="1.5"
+            fill={i === 0 ? '#1a3a4a' : '#e8eef1'}
+            stroke="#1a3a4a" strokeWidth="1.5"
           />
           <text
             x={23 + i * 43} y="33"
             textAnchor="middle" fontSize="14"
-            fill={i === 0 ? 'white' : '#5f021f'}
+            fill={i === 0 ? 'white' : '#1a3a4a'}
             fontWeight="bold"
           >{a}</text>
         </g>
       ))}
       {/* Selected indicator */}
-      <text x="23" y="56" textAnchor="middle" fontSize="9" fill="#5f021f">selected</text>
+      <text x="23" y="56" textAnchor="middle" fontSize="9" fill="#1a3a4a">selected</text>
     </svg>
   );
 }
@@ -156,14 +156,14 @@ function CanvasIllustration() {
         ))
       )}
       {/* A simple molecule: C-C=C */}
-      <line x1="40" y1="70" x2="80" y2="70" stroke="#5f021f" strokeWidth="2.5" />
-      <line x1="80" y1="68" x2="120" y2="68" stroke="#5f021f" strokeWidth="2.5" />
-      <line x1="80" y1="72" x2="120" y2="72" stroke="#5f021f" strokeWidth="2.5" />
-      <circle cx="40" cy="70" r="12" fill="#f9e1e8" stroke="#5f021f" strokeWidth="2" />
-      <circle cx="80" cy="70" r="12" fill="#f9e1e8" stroke="#5f021f" strokeWidth="2" />
-      <circle cx="120" cy="70" r="12" fill="#5f021f" />
-      <text x="40" y="75" textAnchor="middle" fontSize="11" fill="#5f021f" fontWeight="bold">C</text>
-      <text x="80" y="75" textAnchor="middle" fontSize="11" fill="#5f021f" fontWeight="bold">C</text>
+      <line x1="40" y1="70" x2="80" y2="70" stroke="#1a3a4a" strokeWidth="2.5" />
+      <line x1="80" y1="68" x2="120" y2="68" stroke="#1a3a4a" strokeWidth="2.5" />
+      <line x1="80" y1="72" x2="120" y2="72" stroke="#1a3a4a" strokeWidth="2.5" />
+      <circle cx="40" cy="70" r="12" fill="#e8eef1" stroke="#1a3a4a" strokeWidth="2" />
+      <circle cx="80" cy="70" r="12" fill="#e8eef1" stroke="#1a3a4a" strokeWidth="2" />
+      <circle cx="120" cy="70" r="12" fill="#1a3a4a" />
+      <text x="40" y="75" textAnchor="middle" fontSize="11" fill="#1a3a4a" fontWeight="bold">C</text>
+      <text x="80" y="75" textAnchor="middle" fontSize="11" fill="#1a3a4a" fontWeight="bold">C</text>
       <text x="120" y="75" textAnchor="middle" fontSize="11" fill="white" fontWeight="bold">C</text>
       {/* Click cursor */}
       <text x="132" y="50" fontSize="18">👆</text>
@@ -175,18 +175,18 @@ function BondStyleIllustration() {
   return (
     <svg viewBox="0 0 240 100" width="240" height="100">
       {/* Single */}
-      <line x1="10" y1="30" x2="50" y2="30" stroke="#5f021f" strokeWidth="2.5" />
-      <text x="30" y="50" textAnchor="middle" fontSize="10" fill="#5f021f">Single</text>
+      <line x1="10" y1="30" x2="50" y2="30" stroke="#1a3a4a" strokeWidth="2.5" />
+      <text x="30" y="50" textAnchor="middle" fontSize="10" fill="#1a3a4a">Single</text>
       {/* Double */}
-      <line x1="70" y1="28" x2="110" y2="28" stroke="#5f021f" strokeWidth="2.5" />
-      <line x1="70" y1="34" x2="110" y2="34" stroke="#5f021f" strokeWidth="2.5" />
-      <text x="90" y="50" textAnchor="middle" fontSize="10" fill="#5f021f">Double</text>
+      <line x1="70" y1="28" x2="110" y2="28" stroke="#1a3a4a" strokeWidth="2.5" />
+      <line x1="70" y1="34" x2="110" y2="34" stroke="#1a3a4a" strokeWidth="2.5" />
+      <text x="90" y="50" textAnchor="middle" fontSize="10" fill="#1a3a4a">Double</text>
       {/* Wedge */}
-      <polygon points="130,34 155,26 155,34" fill="#5f021f" />
-      <text x="145" y="50" textAnchor="middle" fontSize="10" fill="#5f021f">Wedge</text>
+      <polygon points="130,34 155,26 155,34" fill="#1a3a4a" />
+      <text x="145" y="50" textAnchor="middle" fontSize="10" fill="#1a3a4a">Wedge</text>
       {/* Dash */}
-      <line x1="170" y1="30" x2="210" y2="30" stroke="#5f021f" strokeWidth="2.5" strokeDasharray="4,4" />
-      <text x="190" y="50" textAnchor="middle" fontSize="10" fill="#5f021f">Dash</text>
+      <line x1="170" y1="30" x2="210" y2="30" stroke="#1a3a4a" strokeWidth="2.5" strokeDasharray="4,4" />
+      <text x="190" y="50" textAnchor="middle" fontSize="10" fill="#1a3a4a">Dash</text>
     </svg>
   );
 }
@@ -195,13 +195,13 @@ function ToolIllustration() {
   return (
     <svg viewBox="0 0 160 80" width="160" height="80">
       {/* Pencil button */}
-      <rect x="10" y="20" width="60" height="38" rx="8" fill="#5f021f" stroke="#5f021f" strokeWidth="1.5" />
+      <rect x="10" y="20" width="60" height="38" rx="8" fill="#1a3a4a" stroke="#1a3a4a" strokeWidth="1.5" />
       <text x="40" y="45" textAnchor="middle" fontSize="22" fill="white">✏️</text>
-      <text x="40" y="70" textAnchor="middle" fontSize="10" fill="#5f021f">Pencil</text>
+      <text x="40" y="70" textAnchor="middle" fontSize="10" fill="#1a3a4a">Pencil</text>
       {/* Eraser button */}
-      <rect x="90" y="20" width="60" height="38" rx="8" fill="#f9e1e8" stroke="#5f021f" strokeWidth="1.5" />
+      <rect x="90" y="20" width="60" height="38" rx="8" fill="#e8eef1" stroke="#1a3a4a" strokeWidth="1.5" />
       <text x="120" y="45" textAnchor="middle" fontSize="22" fill="white">🧹</text>
-      <text x="120" y="70" textAnchor="middle" fontSize="10" fill="#5f021f">Eraser</text>
+      <text x="120" y="70" textAnchor="middle" fontSize="10" fill="#1a3a4a">Eraser</text>
     </svg>
   );
 }
@@ -210,12 +210,12 @@ function UndoIllustration() {
   return (
     <svg viewBox="0 0 200 80" width="200" height="80">
       {/* Undo */}
-      <rect x="10" y="15" width="80" height="36" rx="8" fill="#f9e1e8" stroke="#5f021f" strokeWidth="1.5" />
-      <text x="50" y="38" textAnchor="middle" fontSize="13" fill="#5f021f" fontWeight="bold">↩ Undo</text>
+      <rect x="10" y="15" width="80" height="36" rx="8" fill="#e8eef1" stroke="#1a3a4a" strokeWidth="1.5" />
+      <text x="50" y="38" textAnchor="middle" fontSize="13" fill="#1a3a4a" fontWeight="bold">↩ Undo</text>
       <text x="50" y="62" textAnchor="middle" fontSize="10" fill="#888">Ctrl + Z</text>
       {/* Redo */}
-      <rect x="110" y="15" width="80" height="36" rx="8" fill="#f9e1e8" stroke="#5f021f" strokeWidth="1.5" />
-      <text x="150" y="38" textAnchor="middle" fontSize="13" fill="#5f021f" fontWeight="bold">Redo ↪</text>
+      <rect x="110" y="15" width="80" height="36" rx="8" fill="#e8eef1" stroke="#1a3a4a" strokeWidth="1.5" />
+      <text x="150" y="38" textAnchor="middle" fontSize="13" fill="#1a3a4a" fontWeight="bold">Redo ↪</text>
       <text x="150" y="62" textAnchor="middle" fontSize="10" fill="#888">Ctrl + Y</text>
     </svg>
   );
@@ -225,12 +225,12 @@ function SubmitIllustration() {
   return (
     <svg viewBox="0 0 220 100" width="220" height="100">
       {/* Reagents label */}
-      <rect x="10" y="10" width="90" height="30" rx="6" fill="#f9e1e8" stroke="#5f021f" strokeWidth="1.5" />
-      <text x="55" y="30" textAnchor="middle" fontSize="11" fill="#5f021f" fontWeight="bold">H₂ / Pt</text>
+      <rect x="10" y="10" width="90" height="30" rx="6" fill="#e8eef1" stroke="#1a3a4a" strokeWidth="1.5" />
+      <text x="55" y="30" textAnchor="middle" fontSize="11" fill="#1a3a4a" fontWeight="bold">H₂ / Pt</text>
       {/* Arrow */}
-      <text x="115" y="30" textAnchor="middle" fontSize="18" fill="#5f021f">→</text>
+      <text x="115" y="30" textAnchor="middle" fontSize="18" fill="#1a3a4a">→</text>
       {/* Submit button */}
-      <rect x="120" y="55" width="90" height="32" rx="8" fill="#5f021f" />
+      <rect x="120" y="55" width="90" height="32" rx="8" fill="#1a3a4a" />
       <text x="165" y="76" textAnchor="middle" fontSize="13" fill="white" fontWeight="bold">Submit ✓</text>
     </svg>
   );
@@ -272,7 +272,7 @@ const styles = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     minHeight: '80px',
   },
-  title: { fontSize: '20px', color: '#5f021f', margin: '4px 0 0', textAlign: 'center' },
+  title: { fontSize: '20px', color: '#1a3a4a', margin: '4px 0 0', textAlign: 'center' },
   description: {
     fontSize: '15px', color: '#444', lineHeight: '1.6',
     textAlign: 'center', margin: '0 0 8px',
@@ -280,10 +280,10 @@ const styles = {
   nav: { display: 'flex', justifyContent: 'space-between', width: '100%', marginTop: '8px' },
   navBtn: {
     padding: '10px 24px', borderRadius: '8px',
-    border: '1.5px solid #5f021f', cursor: 'pointer',
-    fontSize: '15px', background: 'white', color: '#5f021f',
+    border: '1.5px solid #1a3a4a', cursor: 'pointer',
+    fontSize: '15px', background: 'white', color: '#1a3a4a',
   },
   primaryBtn: {
-    background: '#5f021f', color: 'white', border: 'none',
+    background: '#1a3a4a', color: 'white', border: 'none',
   },
 };

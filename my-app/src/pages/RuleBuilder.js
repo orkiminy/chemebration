@@ -675,14 +675,14 @@ export default function RuleBuilder() {
             {/* Numbered reagent steps above the arrow */}
             {reagentSteps.map((step, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: "4px", width: "100%" }}>
-                <span style={{ color: "#5f021f", fontWeight: "bold", fontSize: "0.85rem", minWidth: "20px" }}>{i + 1}.</span>
+                <span style={{ color: "#1a3a4a", fontWeight: "bold", fontSize: "0.85rem", minWidth: "20px" }}>{i + 1}.</span>
                 <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
                   <input
                     type="text"
                     value={step}
                     onChange={(e) => updateStep(i, toPlainDigits(e.target.value))}
                     placeholder=""
-                    style={{ width: "100%", padding: "5px 6px 8px", border: "1.5px solid #5f021f", borderRadius: "5px", fontSize: "1rem", textAlign: "center", lineHeight: "1.6", color: "transparent", caretColor: "#5f021f", background: "white", boxSizing: "border-box" }}
+                    style={{ width: "100%", padding: "5px 6px 8px", border: "1.5px solid #1a3a4a", borderRadius: "5px", fontSize: "1rem", textAlign: "center", lineHeight: "1.6", color: "transparent", caretColor: "#1a3a4a", background: "white", boxSizing: "border-box" }}
                   />
                   <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1rem", pointerEvents: "none", overflow: "hidden" }}>
                     <span style={{ whiteSpace: "nowrap", color: step ? "#000" : "#999" }}>
@@ -695,21 +695,21 @@ export default function RuleBuilder() {
                 )}
               </div>
             ))}
-            <div onClick={addStep} style={{ color: "#5f021f", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, alignSelf: "flex-end", userSelect: "none" }}>+ Add Step</div>
+            <div onClick={addStep} style={{ color: "#1a3a4a", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, alignSelf: "flex-end", userSelect: "none" }}>+ Add Step</div>
 
             {/* Forward Arrow */}
             <svg width="140" height="20" viewBox="0 0 140 20" style={{ marginTop: "4px" }}>
-              <line x1="4" y1="10" x2="125" y2="10" stroke="#5f021f" strokeWidth="2.5" />
-              <polygon points="125,5 140,10 125,15" fill="#5f021f" />
+              <line x1="4" y1="10" x2="125" y2="10" stroke="#1a3a4a" strokeWidth="2.5" />
+              <polygon points="125,5 140,10 125,15" fill="#1a3a4a" />
             </svg>
 
             {/* Reversible toggle */}
-            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: "8px", cursor: "pointer", fontSize: "0.85rem", color: "#5f021f", fontWeight: 600, userSelect: "none" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: "8px", cursor: "pointer", fontSize: "0.85rem", color: "#1a3a4a", fontWeight: 600, userSelect: "none" }}>
               <input
                 type="checkbox"
                 checked={reversible}
                 onChange={(e) => setReversible(e.target.checked)}
-                style={{ accentColor: "#5f021f" }}
+                style={{ accentColor: "#1a3a4a" }}
               />
               Reversible (← arrow)
             </label>
@@ -718,19 +718,19 @@ export default function RuleBuilder() {
             {reversible && (
               <>
                 <svg width="140" height="20" viewBox="0 0 140 20" style={{ marginTop: "4px" }}>
-                  <line x1="15" y1="10" x2="136" y2="10" stroke="#5f021f" strokeWidth="2.5" />
-                  <polygon points="15,5 0,10 15,15" fill="#5f021f" />
+                  <line x1="15" y1="10" x2="136" y2="10" stroke="#1a3a4a" strokeWidth="2.5" />
+                  <polygon points="15,5 0,10 15,15" fill="#1a3a4a" />
                 </svg>
                 {backwardSteps.map((step, i) => (
                   <div key={`bk-${i}`} style={{ display: "flex", alignItems: "center", gap: "4px", width: "100%" }}>
-                    <span style={{ color: "#5f021f", fontWeight: "bold", fontSize: "0.85rem", minWidth: "20px" }}>{i + 1}.</span>
+                    <span style={{ color: "#1a3a4a", fontWeight: "bold", fontSize: "0.85rem", minWidth: "20px" }}>{i + 1}.</span>
                     <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
                       <input
                         type="text"
                         value={step}
                         onChange={(e) => updateBackwardStep(i, toPlainDigits(e.target.value))}
                         placeholder=""
-                        style={{ width: "100%", padding: "5px 6px 8px", border: "1.5px solid #5f021f", borderRadius: "5px", fontSize: "1rem", textAlign: "center", lineHeight: "1.6", color: "transparent", caretColor: "#5f021f", background: "white", boxSizing: "border-box" }}
+                        style={{ width: "100%", padding: "5px 6px 8px", border: "1.5px solid #1a3a4a", borderRadius: "5px", fontSize: "1rem", textAlign: "center", lineHeight: "1.6", color: "transparent", caretColor: "#1a3a4a", background: "white", boxSizing: "border-box" }}
                       />
                       <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1rem", pointerEvents: "none", overflow: "hidden" }}>
                         <span style={{ whiteSpace: "nowrap", color: step ? "#000" : "#999" }}>
@@ -743,12 +743,12 @@ export default function RuleBuilder() {
                     )}
                   </div>
                 ))}
-                <div onClick={addBackwardStep} style={{ color: "#5f021f", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, alignSelf: "flex-end", userSelect: "none" }}>+ Add Step</div>
+                <div onClick={addBackwardStep} style={{ color: "#1a3a4a", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, alignSelf: "flex-end", userSelect: "none" }}>+ Add Step</div>
               </>
             )}
 
             <button
-              style={{ marginTop: "6px", whiteSpace: "nowrap", background: "#5f021f", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 12px", cursor: "pointer", fontSize: "0.9rem" }}
+              style={{ marginTop: "6px", whiteSpace: "nowrap", background: "#1a3a4a", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 12px", cursor: "pointer", fontSize: "0.9rem" }}
               onClick={handleCopy}
             >
               Copy Left → Right
@@ -822,7 +822,7 @@ export default function RuleBuilder() {
 
         {/* Saved rules list */}
         <div style={{ marginTop: "2rem" }}>
-          <h3 style={{ color: "#5f021f", marginBottom: "0.75rem" }}>
+          <h3 style={{ color: "#1a3a4a", marginBottom: "0.75rem" }}>
             Saved Rules ({loading ? "…" : rules.length})
           </h3>
           {loading ? (
@@ -851,7 +851,7 @@ export default function RuleBuilder() {
                     <td style={{ padding: "8px 12px", border: "1px solid #ddd", textAlign: "center" }}>
                       <button
                         onClick={() => setViewRule(r)}
-                        style={{ background: "none", border: "1px solid #5f021f", color: "#5f021f", borderRadius: "4px", cursor: "pointer", padding: "2px 8px" }}
+                        style={{ background: "none", border: "1px solid #1a3a4a", color: "#1a3a4a", borderRadius: "4px", cursor: "pointer", padding: "2px 8px" }}
                       >
                         View
                       </button>
@@ -891,7 +891,7 @@ export default function RuleBuilder() {
             style={{ background: "#fff", borderRadius: 10, padding: "2rem", maxWidth: 720, width: "95%", boxShadow: "0 8px 32px rgba(0,0,0,0.25)" }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-              <h3 style={{ color: "#5f021f", margin: 0 }}>{viewRule.name}</h3>
+              <h3 style={{ color: "#1a3a4a", margin: 0 }}>{viewRule.name}</h3>
               <button onClick={() => setViewRule(null)} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#666", lineHeight: 1 }}>✕</button>
             </div>
 
@@ -902,12 +902,12 @@ export default function RuleBuilder() {
               </div>
 
               <div style={{ textAlign: "center", minWidth: 90 }}>
-                <div style={{ fontSize: "0.85rem", color: "#5f021f", fontWeight: 600, marginBottom: 4 }}>
+                <div style={{ fontSize: "0.85rem", color: "#1a3a4a", fontWeight: 600, marginBottom: 4 }}>
                   {autoSubscript(viewRule.reagent)}
                 </div>
                 <svg width="80" height="20" viewBox="0 0 80 20">
-                  <line x1="2" y1="10" x2="66" y2="10" stroke="#5f021f" strokeWidth="2.5" />
-                  <polygon points="66,5 80,10 66,15" fill="#5f021f" />
+                  <line x1="2" y1="10" x2="66" y2="10" stroke="#1a3a4a" strokeWidth="2.5" />
+                  <polygon points="66,5 80,10 66,15" fill="#1a3a4a" />
                 </svg>
               </div>
 
@@ -931,7 +931,7 @@ export default function RuleBuilder() {
             <div style={{ marginTop: "1.25rem", textAlign: "right" }}>
               <button
                 onClick={() => handleEdit(viewRule)}
-                style={{ background: "#5f021f", color: "#fff", border: "none", borderRadius: 6, padding: "8px 20px", cursor: "pointer", fontSize: "1rem" }}
+                style={{ background: "#1a3a4a", color: "#fff", border: "none", borderRadius: 6, padding: "8px 20px", cursor: "pointer", fontSize: "1rem" }}
               >
                 Edit
               </button>

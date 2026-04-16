@@ -41,7 +41,7 @@ export default function OneStepReaction() {
                   textAlign: "center",
                   color: "#333",
                 }}
-                onMouseEnter={e => { e.target.style.borderColor = "#5f021f"; e.target.style.background = "#fdf5f7"; }}
+                onMouseEnter={e => { e.target.style.borderColor = "#2d7d9a"; e.target.style.background = "#f0f7fa"; }}
                 onMouseLeave={e => { e.target.style.borderColor = "#ddd"; e.target.style.background = "#fff"; }}
               >
                 {ch.label}

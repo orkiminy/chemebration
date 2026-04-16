@@ -397,7 +397,7 @@ export default function Synthesis() {
         {/* ===== PHASE 1: Drawing canvas (before analysis) ===== */}
         {showCanvas && (
           <>
-            <h2 style={{ color: "#5f021f", marginBottom: "0.5rem" }}>Draw your target molecule</h2>
+            <h2 style={{ color: "#1a3a4a", marginBottom: "0.5rem" }}>Draw your target molecule</h2>
             <p style={{ color: "#666", marginTop: 0 }}>
               Draw the product you want to synthesize, then click "Find Disconnections".
             </p>
@@ -493,11 +493,11 @@ export default function Synthesis() {
           <>
             {/* Controls bar */}
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
-              <h2 style={{ color: "#5f021f", margin: 0 }}>Synthesis Path</h2>
+              <h2 style={{ color: "#1a3a4a", margin: 0 }}>Synthesis Path</h2>
               {steps.length > 1 && (
-                <button onClick={handleUndo} style={{ padding: "8px 16px", fontSize: "0.9rem", background: "#fff", border: "2px solid #5f021f", color: "#5f021f", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}>&#8617; Undo Step</button>
+                <button onClick={handleUndo} style={{ padding: "8px 16px", fontSize: "0.9rem", background: "#fff", border: "2px solid #1a3a4a", color: "#1a3a4a", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}>&#8617; Undo Step</button>
               )}
-              <button onClick={handleReset} style={{ padding: "8px 16px", fontSize: "0.9rem", background: "#5f021f", border: "none", color: "#fff", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}>Start Over</button>
+              <button onClick={handleReset} style={{ padding: "8px 16px", fontSize: "0.9rem", background: "#1a3a4a", border: "none", color: "#fff", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}>Start Over</button>
               {pathComplete && (
                 <span style={{ color: "#1a6b3a", fontWeight: 600, fontSize: "1.1rem", marginLeft: 8 }}>Path complete!</span>
               )}
@@ -505,7 +505,7 @@ export default function Synthesis() {
 
             {/* Analyzing spinner */}
             {analyzing && (
-              <div style={{ padding: "1.5rem", textAlign: "center", color: "#5f021f", border: "2px dashed #5f021f", borderRadius: 10, marginBottom: "1.5rem" }}>
+              <div style={{ padding: "1.5rem", textAlign: "center", color: "#1a3a4a", border: "2px dashed #1a3a4a", borderRadius: 10, marginBottom: "1.5rem" }}>
                 <p style={{ margin: 0 }}>Finding possible disconnections...</p>
               </div>
             )}
@@ -537,7 +537,7 @@ export default function Synthesis() {
                       <div style={{ width: 140, height: 140, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "0.5rem" }}>
                         <SetCanvas atoms={disc.precursor.atoms} bonds={disc.precursor.bonds} hideGrid size={140} />
                       </div>
-                      <div style={{ fontWeight: 700, color: "#5f021f", fontSize: "1.05rem" }}>{disc.resolvedReagent || disc.rule.reagent}</div>
+                      <div style={{ fontWeight: 700, color: "#1a3a4a", fontSize: "1.05rem" }}>{disc.resolvedReagent || disc.rule.reagent}</div>
                       <div style={{ fontSize: "0.9rem", color: "#555", marginTop: 4 }}>{disc.rule.name}</div>
                       <div style={{ fontSize: "0.8rem", color: disc.verified ? "#1a6b3a" : "#c90", marginTop: 6, fontWeight: 600 }}>
                         {disc.verified ? "Verified ✓" : "Unverified"}
@@ -557,7 +557,7 @@ export default function Synthesis() {
 
             {/* Synthesis chain — AT THE BOTTOM, wraps to next line */}
             <div style={{ borderTop: "2px solid #eee", paddingTop: "1.5rem" }}>
-              <h3 style={{ color: "#5f021f", marginBottom: "1rem", fontSize: "1.3rem" }}>
+              <h3 style={{ color: "#1a3a4a", marginBottom: "1rem", fontSize: "1.3rem" }}>
                 Synthesis Path ({steps.length - 1} step{steps.length - 1 !== 1 ? "s" : ""})
               </h3>
               <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "12px 0" }}>
@@ -576,13 +576,13 @@ export default function Synthesis() {
                         return (
                           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "0 6px", width: 120 }}>
                             {reagent && reagent !== "Target" && (
-                              <div style={{ fontSize: "0.9rem", color: "#5f021f", fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>
+                              <div style={{ fontSize: "0.9rem", color: "#1a3a4a", fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>
                                 {reagent}
                               </div>
                             )}
                             <svg width="60" height="16" viewBox="0 0 60 16" style={{ margin: "4px 0", flexShrink: 0 }}>
-                              <line x1="2" y1="8" x2="46" y2="8" stroke="#5f021f" strokeWidth="2.5" />
-                              <polygon points="46,4 58,8 46,12" fill="#5f021f" />
+                              <line x1="2" y1="8" x2="46" y2="8" stroke="#1a3a4a" strokeWidth="2.5" />
+                              <polygon points="46,4 58,8 46,12" fill="#1a3a4a" />
                             </svg>
                             {rule && rule !== "Target" && (
                               <div style={{ fontSize: "0.75rem", color: "#777", textAlign: "center", lineHeight: 1.2 }}>
@@ -595,15 +595,15 @@ export default function Synthesis() {
 
                       {/* Molecule card */}
                       <div style={{
-                        border: (isCurrent || isLast) ? "2px solid #5f021f" : "1px solid #ddd",
+                        border: (isCurrent || isLast) ? "2px solid #1a3a4a" : "1px solid #ddd",
                         borderRadius: 12,
                         padding: "8px",
-                        background: isLast ? "#fdf5f7" : isCurrent ? "#f5f0ff" : "#fff",
+                        background: isLast ? "#f0f4f6" : isCurrent ? "#f5f0ff" : "#fff",
                         width: 160,
                         textAlign: "center",
                         flexShrink: 0,
                       }}>
-                        <div style={{ fontSize: "0.9rem", fontWeight: 700, color: (isCurrent || isLast) ? "#5f021f" : "#666", marginBottom: 4 }}>
+                        <div style={{ fontSize: "0.9rem", fontWeight: 700, color: (isCurrent || isLast) ? "#1a3a4a" : "#666", marginBottom: 4 }}>
                           {isLast ? "Target" : isFirst && pathComplete ? "Start" : isCurrent ? "Current" : `Step ${i}`}
                         </div>
                         <div style={{ width: 144, height: 144, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center" }}>

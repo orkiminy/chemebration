@@ -39,7 +39,7 @@ const ATOM_FILL = {
  */
 export function atomFill(label) {
   const l = (label || 'C').trim();
-  return ATOM_FILL[l] ?? '#5f021f';
+  return ATOM_FILL[l] ?? '#1a3a4a';
 }
 
 /**

@@ -749,7 +749,7 @@ const { user } = useAuth();
     <div>
       {/* Question header */}
       <div style={{ marginBottom: "1rem" }}>
-        <h2 style={{ color: "#5f021f", margin: 0 }}>
+        <h2 style={{ color: "#1a3a4a", margin: 0 }}>
           Question #{questionCount}: {currentLevel.title}
           {currentLevel.multiStep && currentLevel.steps && (
             <span style={{ fontSize: "0.7em", fontWeight: "normal", marginLeft: 12, color: "#888" }}>
@@ -779,7 +779,7 @@ const { user } = useAuth();
 
       {/* Question-type hint */}
       {!currentLevel.multiStep && (
-        <div style={{ marginBottom: "0.75rem", fontStyle: "italic", color: "#5f021f" }}>
+        <div style={{ marginBottom: "0.75rem", fontStyle: "italic", color: "#1a3a4a" }}>
           {questionType === "product" && "Draw the product of this reaction."}
           {questionType === "reactant" && "Draw the reactant needed for this reaction."}
           {questionType === "reagent" && "Type the reagent needed for this reaction."}
@@ -816,7 +816,7 @@ const { user } = useAuth();
                 {reagentInputs.map((val, idx) => (
                   <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, justifyContent: "center" }}>
                     {reagentInputs.length > 1 && (
-                      <span style={{ fontWeight: 600, color: "#5f021f", fontSize: "0.85rem", minWidth: 18 }}>{idx + 1}.</span>
+                      <span style={{ fontWeight: 600, color: "#1a3a4a", fontSize: "0.85rem", minWidth: 18 }}>{idx + 1}.</span>
                     )}
                     <div style={{ position: "relative", width: "180px" }}>
                       <input
@@ -848,7 +848,7 @@ const { user } = useAuth();
                 ))}
                 <div
                   onClick={() => setReagentInputs([...reagentInputs, ""])}
-                  style={{ color: "#5f021f", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, userSelect: "none", marginBottom: 10 }}
+                  style={{ color: "#1a3a4a", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, userSelect: "none", marginBottom: 10 }}
                 >+ Add Step</div>
 
                 {/* Arrows */}
@@ -868,7 +868,7 @@ const { user } = useAuth();
                 {/* Backward arrow toggle */}
                 <div
                   onClick={() => setShowBackwardArrow(!showBackwardArrow)}
-                  style={{ color: "#5f021f", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, userSelect: "none", marginBottom: 10 }}
+                  style={{ color: "#1a3a4a", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, userSelect: "none", marginBottom: 10 }}
                 >{showBackwardArrow ? "− Remove backward arrow" : "+ Add backward arrow ←"}</div>
 
                 <div style={{ marginTop: 8, display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
@@ -1153,8 +1153,8 @@ const { user } = useAuth();
 
       {/* Answer panel — reagent text variant */}
       {showAnswer && questionType === "reagent" && (
-        <div style={{ marginTop: "1.5rem", borderTop: "2px solid #5f021f", paddingTop: "1rem" }}>
-          <span style={{ fontWeight: "bold", color: "#5f021f", marginRight: 8 }}>Correct Answer:</span>
+        <div style={{ marginTop: "1.5rem", borderTop: "2px solid #1a3a4a", paddingTop: "1rem" }}>
+          <span style={{ fontWeight: "bold", color: "#1a3a4a", marginRight: 8 }}>Correct Answer:</span>
           <span style={{ fontSize: "1.1rem" }}>→ {currentLevel.reagents}</span>
           {currentLevel.reversible && currentLevel.backwardReagent && (
             <span style={{ fontSize: "1.1rem", marginLeft: 16 }}>← {currentLevel.backwardReagent}</span>
@@ -1164,9 +1164,9 @@ const { user } = useAuth();
 
       {/* Answer panel — shown when Show Answer is clicked */}
       {showAnswer && answerProducts.length > 0 && (
-        <div style={{ marginTop: "1.5rem", borderTop: "2px solid #5f021f", paddingTop: "1rem" }}>
+        <div style={{ marginTop: "1.5rem", borderTop: "2px solid #1a3a4a", paddingTop: "1rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.5rem" }}>
-            <span style={{ fontWeight: "bold", color: "#5f021f" }}>Correct Answer:</span>
+            <span style={{ fontWeight: "bold", color: "#1a3a4a" }}>Correct Answer:</span>
             {answerProducts.length > 1 && (
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 {answerProducts.map((_, i) => (

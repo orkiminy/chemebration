@@ -72,11 +72,16 @@ function Header() {
         </div>
       </div>
 
-      <div className="screenshot-container">
+      <div className="hero-section">
         <img
-          src="/images/Screenshot 2026-01-13 at 3.35.26 PM.png"
-          alt="Screenshot of the app"
+          src="/images/Screenshot 2024-12-26 232145.png"
+          alt="Chemebration hexagon pattern"
+          className="hero-image"
         />
+        <div className="hero-overlay">
+          <h2 className="hero-tagline">Celebrate Organic Chemistry</h2>
+          <p className="hero-subtitle">Practice reactions, build intuition, and learn by drawing</p>
+        </div>
       </div>
 
       <div className="subcategories">
@@ -85,7 +90,7 @@ function Header() {
             <svg className="hexagon" width="50" height="30" viewBox="0 0 120 104" xmlns="http://www.w3.org/2000/svg">
               <polygon points="35,0 85,0 120,52 85,104 35,104 0,52"
                       fill="transparent"
-                      stroke="#5f021f"
+                      stroke="#1a3a4a"
                       strokeWidth="4"/>
             </svg>
             <Link to="/oneStepReaction">
@@ -96,7 +101,7 @@ function Header() {
             <svg className="hexagon" width="50" height="30" viewBox="0 0 120 104" xmlns="http://www.w3.org/2000/svg">
               <polygon points="35,0 85,0 120,52 85,104 35,104 0,52"
                       fill="transparent"
-                      stroke="#5f021f"
+                      stroke="#1a3a4a"
                       strokeWidth="4"/>
             </svg>
             <Link to="/Synthesis">
@@ -107,7 +112,7 @@ function Header() {
             <svg className="hexagon" width="50" height="30" viewBox="0 0 120 104" xmlns="http://www.w3.org/2000/svg">
               <polygon points="35,0 85,0 120,52 85,104 35,104 0,52"
                       fill="transparent"
-                      stroke="#5f021f"
+                      stroke="#1a3a4a"
                       strokeWidth="4"/>
             </svg>
             <Link to="/ReactionExplorer">
@@ -118,7 +123,7 @@ function Header() {
             <svg className="hexagon" width="50" height="30" viewBox="0 0 120 104" xmlns="http://www.w3.org/2000/svg">
               <polygon points="35,0 85,0 120,52 85,104 35,104 0,52"
                       fill="transparent"
-                      stroke="#5f021f"
+                      stroke="#1a3a4a"
                       strokeWidth="4"/>
             </svg>
             <Link to="/ReactionLibrary">
@@ -129,7 +134,7 @@ function Header() {
             <svg className="hexagon" width="50" height="30" viewBox="0 0 120 104" xmlns="http://www.w3.org/2000/svg">
               <polygon points="35,0 85,0 120,52 85,104 35,104 0,52"
                       fill="transparent"
-                      stroke="#5f021f"
+                      stroke="#1a3a4a"
                       strokeWidth="4"/>
             </svg>
             <Link to="/rule-builder">

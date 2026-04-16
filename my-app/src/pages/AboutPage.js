@@ -26,10 +26,10 @@ export default function AboutPage() {
           maxWidth: '720px',
           width: '100%',
           padding: '4rem',
-          borderTop: '5px solid #5f021f',
+          borderTop: '5px solid #1a3a4a',
         }}>
           <h2 style={{
-            color: '#5f021f',
+            color: '#1a3a4a',
             fontSize: '2.4rem',
             fontWeight: '700',
             marginBottom: '2rem',

@@ -8,7 +8,7 @@ export default function PrivateRoute({ children }) {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', fontSize: '1.8rem', color: '#5f021f' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', fontSize: '1.8rem', color: '#1a3a4a' }}>
         Loading...
       </div>
     );
