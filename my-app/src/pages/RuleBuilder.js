@@ -538,6 +538,8 @@ export default function RuleBuilder() {
   const [rightBonds, setRightBonds] = useState([]);
 
   const [reagentSteps, setReagentSteps] = useState([""]);
+  const [reversible, setReversible] = useState(false);
+  const [backwardSteps, setBackwardSteps] = useState([""]);
   const [ruleName, setRuleName] = useState("");
   const [explanation, setExplanation] = useState("");
   const [reactionType, setReactionType] = useState("");
@@ -548,10 +550,15 @@ export default function RuleBuilder() {
 
   // Use the first non-empty step as the reagent for matching
   const reagent = reagentSteps.map(s => s.trim()).filter(Boolean).join(" / ");
+  const backwardReagent = backwardSteps.map(s => s.trim()).filter(Boolean).join(" / ");
 
   const updateStep = (i, val) => setReagentSteps(steps => steps.map((s, j) => j === i ? val : s));
   const addStep = () => setReagentSteps(steps => [...steps, ""]);
   const removeStep = (i) => setReagentSteps(steps => steps.length === 1 ? steps : steps.filter((_, j) => j !== i));
+
+  const updateBackwardStep = (i, val) => setBackwardSteps(steps => steps.map((s, j) => j === i ? val : s));
+  const addBackwardStep = () => setBackwardSteps(steps => [...steps, ""]);
+  const removeBackwardStep = (i) => setBackwardSteps(steps => steps.length === 1 ? steps : steps.filter((_, j) => j !== i));
 
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -577,6 +584,8 @@ export default function RuleBuilder() {
       name: ruleName.trim() || reagent.trim(),
       explanation: explanation.trim(),
       reactionType: reactionType.trim(),
+      reversible: reversible,
+      backwardReagent: reversible ? backwardReagent.trim() : "",
       ...snapshot,
     };
 
@@ -590,6 +599,8 @@ export default function RuleBuilder() {
     setRules(updated);
     setSaveMsg(editingRule ? `Rule "${rule.name}" updated!` : `Rule "${rule.name}" saved!`);
     setReagentSteps([""]);
+    setReversible(false);
+    setBackwardSteps([""]);
     setRuleName("");
     setExplanation("");
     setReactionType("");
@@ -607,10 +618,12 @@ export default function RuleBuilder() {
     setRightAtoms(rule.resultAtoms ?? []);
     setRightBonds(rule.resultBonds ?? []);
     setReagentSteps(rule.reagent ? rule.reagent.split(" / ") : [""]);
+    setReversible(!!rule.reversible);
+    setBackwardSteps(rule.backwardReagent ? rule.backwardReagent.split(" / ") : [""]);
     setRuleName((rule.name ?? "") + " (copy)");
     setExplanation(rule.explanation ?? "");
     setReactionType(rule.reactionType ?? "");
-    setEditingRule(null); // null so Save creates a NEW rule in Firestore
+    setEditingRule(null);
     setViewRule(null);
     setResetKey(k => (k ?? 0) + 1);
   };
@@ -621,6 +634,8 @@ export default function RuleBuilder() {
     setRightAtoms(rule.resultAtoms ?? []);
     setRightBonds(rule.resultBonds ?? []);
     setReagentSteps(rule.reagent ? rule.reagent.split(" / ") : [""]);
+    setReversible(!!rule.reversible);
+    setBackwardSteps(rule.backwardReagent ? rule.backwardReagent.split(" / ") : [""]);
     setRuleName(rule.name ?? "");
     setExplanation(rule.explanation ?? "");
     setReactionType(rule.reactionType ?? "");
@@ -680,11 +695,55 @@ export default function RuleBuilder() {
             ))}
             <div onClick={addStep} style={{ color: "#5f021f", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, alignSelf: "flex-end", userSelect: "none" }}>+ Add Step</div>
 
-            {/* Arrow */}
+            {/* Forward Arrow */}
             <svg width="140" height="20" viewBox="0 0 140 20" style={{ marginTop: "4px" }}>
               <line x1="4" y1="10" x2="125" y2="10" stroke="#5f021f" strokeWidth="2.5" />
               <polygon points="125,5 140,10 125,15" fill="#5f021f" />
             </svg>
+
+            {/* Reversible toggle */}
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: "8px", cursor: "pointer", fontSize: "0.85rem", color: "#5f021f", fontWeight: 600, userSelect: "none" }}>
+              <input
+                type="checkbox"
+                checked={reversible}
+                onChange={(e) => setReversible(e.target.checked)}
+                style={{ accentColor: "#5f021f" }}
+              />
+              Reversible (← arrow)
+            </label>
+
+            {/* Backward arrow + reagent steps (only when reversible) */}
+            {reversible && (
+              <>
+                <svg width="140" height="20" viewBox="0 0 140 20" style={{ marginTop: "4px" }}>
+                  <line x1="15" y1="10" x2="136" y2="10" stroke="#5f021f" strokeWidth="2.5" />
+                  <polygon points="15,5 0,10 15,15" fill="#5f021f" />
+                </svg>
+                {backwardSteps.map((step, i) => (
+                  <div key={`bk-${i}`} style={{ display: "flex", alignItems: "center", gap: "4px", width: "100%" }}>
+                    <span style={{ color: "#5f021f", fontWeight: "bold", fontSize: "0.85rem", minWidth: "20px" }}>{i + 1}.</span>
+                    <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
+                      <input
+                        type="text"
+                        value={step}
+                        onChange={(e) => updateBackwardStep(i, toPlainDigits(e.target.value))}
+                        placeholder=""
+                        style={{ width: "100%", padding: "5px 6px 8px", border: "1.5px solid #5f021f", borderRadius: "5px", fontSize: "1rem", textAlign: "center", lineHeight: "1.6", color: "transparent", caretColor: "#5f021f", background: "white", boxSizing: "border-box" }}
+                      />
+                      <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1rem", pointerEvents: "none", overflow: "hidden" }}>
+                        <span style={{ whiteSpace: "nowrap", color: step ? "#000" : "#999" }}>
+                          {step ? formatReagentDisplay(step) : (i === 0 ? "e.g. OH⁻" : "e.g. H2O")}
+                        </span>
+                      </div>
+                    </div>
+                    {backwardSteps.length > 1 && (
+                      <span onClick={() => removeBackwardStep(i)} style={{ color: "#999", cursor: "pointer", fontSize: "1.1rem", padding: "0 2px", userSelect: "none" }}>×</span>
+                    )}
+                  </div>
+                ))}
+                <div onClick={addBackwardStep} style={{ color: "#5f021f", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, alignSelf: "flex-end", userSelect: "none" }}>+ Add Step</div>
+              </>
+            )}
 
             <button
               style={{ marginTop: "6px", whiteSpace: "nowrap", background: "#5f021f", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 12px", cursor: "pointer", fontSize: "0.9rem" }}

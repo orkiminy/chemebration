@@ -33,10 +33,11 @@ function renderChemical(str) {
   return parts.length > 0 ? parts : s;
 }
 
-export default function ReactionArrow({ text }) {
+export default function ReactionArrow({ text, backwardText }) {
   // Split the text string "H₂ / Pt" into two parts: ["H₂", "Pt"]
   // If there is no slash, the bottom will just be empty.
   const [top, bottom] = text ? text.split("/").map(s => s.trim()) : ["", ""];
+  const [backTop, backBottom] = backwardText ? backwardText.split("/").map(s => s.trim()) : ["", ""];
 
   return (
     <div style={{
@@ -45,23 +46,35 @@ export default function ReactionArrow({ text }) {
       gap: "40px",
       fontFamily: "Arial",
       padding: "10px",
-      // Removed border/background so it looks cleaner between the canvases
       justifyContent: "center",
       minWidth: "60px"
     }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-        {/* Top Reagent (e.g. H₂) */}
+        {/* Forward: Top Reagent */}
         <div style={{ fontWeight: "bold", fontSize: "18px", marginBottom: "-5px" }}>
           {renderChemical(top)}
         </div>
 
-        {/* The Arrow */}
+        {/* Forward Arrow */}
         <div style={{ fontSize: "28px", fontWeight: "bold", color: "#333" }}>→</div>
 
-        {/* Bottom Reagent (e.g. Pt) */}
+        {/* Forward: Bottom Reagent */}
         <div style={{ fontWeight: "bold", fontSize: "14px", marginTop: "-5px" }}>
           {renderChemical(bottom)}
         </div>
+
+        {/* Backward arrow + reagents (only for reversible reactions) */}
+        {backwardText && (
+          <>
+            <div style={{ fontWeight: "bold", fontSize: "18px", marginTop: "6px", marginBottom: "-5px" }}>
+              {renderChemical(backTop)}
+            </div>
+            <div style={{ fontSize: "28px", fontWeight: "bold", color: "#333" }}>←</div>
+            <div style={{ fontWeight: "bold", fontSize: "14px", marginTop: "-5px" }}>
+              {renderChemical(backBottom)}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

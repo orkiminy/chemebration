@@ -189,6 +189,8 @@ export function ruleToExercise(rule) {
     chapter: rule.reactionType || "",
     title: rule.name || rule.reagent,
     reagents: rule.reagent,
+    reversible: !!rule.reversible,
+    backwardReagent: rule.backwardReagent || "",
     description: rule.explanation || "",
     question: {
       atoms: offsetAtoms(questionAtoms),

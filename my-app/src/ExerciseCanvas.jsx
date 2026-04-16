@@ -143,6 +143,7 @@ export default function ExerciseCanvas({ exerciseType = "OneStepReaction", chapt
   // Question type: "product" (draw product), "reactant" (draw reactant), or "reagent" (type reagent text)
   const [questionType, setQuestionType] = useState("product");
   const [reagentInputs, setReagentInputs] = useState([""]);
+  const [showBackwardArrow, setShowBackwardArrow] = useState(false);
 
   // Drawing helpers
   const [history, setHistory] = useState([]);
@@ -171,7 +172,7 @@ const { user } = useAuth();
   useEffect(() => {
     if (feedback) setFeedback(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [atoms, bonds, reagentInputs]);
+  }, [atoms, bonds, reagentInputs, showBackwardArrow]);
 
   /* Pick a new question type whenever the current level changes */
   useEffect(() => {
@@ -181,6 +182,7 @@ const { user } = useAuth();
     if (qt === "reagent" && currentLevel) {
       const stepCount = splitReagentSteps(currentLevel.reagents).length;
       setReagentInputs(Array(stepCount).fill(""));
+      setShowBackwardArrow(false);
     } else {
       setReagentInputs([""]);
     }
@@ -538,6 +540,7 @@ const { user } = useAuth();
       setAtoms([]);
       setBonds([]);
       setReagentInputs([""]);
+      setShowBackwardArrow(false);
       setFeedback(null);
       setCurrentStep(0);
       setIntermediateResult(null);
@@ -551,11 +554,15 @@ const { user } = useAuth();
   const checkAnswer = () => {
     // Reagent text question — checked separately, no drawing required
     if (questionType === "reagent") {
+      const isReversible = !!(currentLevel.reversible && currentLevel.backwardReagent);
       if (reagentInputs.every(s => !s.trim())) {
         setFeedback({ type: "error", message: "Type the reagent first!" });
         return;
       }
-      if (checkReagentMatch(reagentInputs, currentLevel.reagents)) {
+      const forwardOk = checkReagentMatch(reagentInputs, currentLevel.reagents);
+      // Student must toggle backward arrow if reaction is reversible, and must NOT if it isn't
+      const backwardOk = isReversible ? showBackwardArrow : !showBackwardArrow;
+      if (forwardOk && backwardOk) {
         setFeedback({ type: "success", message: "Correct! Next question..." });
         advanceToNextQuestion();
       } else {
@@ -726,6 +733,7 @@ const { user } = useAuth();
             <div className="exercise-panel-box">
               <div className="exercise-panel-label">Reagent</div>
               <div style={{ padding: "20px", textAlign: "center", minWidth: 220 }}>
+                {/* Reagent inputs */}
                 {reagentInputs.map((val, idx) => (
                   <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, justifyContent: "center" }}>
                     {reagentInputs.length > 1 && (
@@ -756,6 +764,21 @@ const { user } = useAuth();
                   onClick={() => setReagentInputs([...reagentInputs, ""])}
                   style={{ color: "#5f021f", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, userSelect: "none", marginBottom: 10 }}
                 >+ Add Step</div>
+
+                {/* Arrows */}
+                <div style={{ margin: "8px 0" }}>
+                  <div style={{ fontSize: "28px", fontWeight: "bold", color: "#333", lineHeight: 1 }}>→</div>
+                  {showBackwardArrow && (
+                    <div style={{ fontSize: "28px", fontWeight: "bold", color: "#333", lineHeight: 1 }}>←</div>
+                  )}
+                </div>
+
+                {/* Backward arrow toggle */}
+                <div
+                  onClick={() => setShowBackwardArrow(!showBackwardArrow)}
+                  style={{ color: "#5f021f", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, userSelect: "none", marginBottom: 10 }}
+                >{showBackwardArrow ? "− Remove backward arrow" : "+ Add backward arrow ←"}</div>
+
                 <div style={{ marginTop: 8, display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
                   <button className="toolbar-btn toolbar-btn-check" onClick={checkAnswer}>Check Answer</button>
                   <button className="toolbar-btn" style={{ opacity: 0.75 }} onClick={handleShowAnswer}>
@@ -777,6 +800,7 @@ const { user } = useAuth();
                   text={currentLevel.multiStep && currentLevel.steps
                     ? currentLevel.steps[0].reagents
                     : currentLevel.reagents}
+                  backwardText={currentLevel.reversible ? currentLevel.backwardReagent : undefined}
                 />
               </div>
             </div>
@@ -1024,7 +1048,10 @@ const { user } = useAuth();
       {showAnswer && questionType === "reagent" && (
         <div style={{ marginTop: "1.5rem", borderTop: "2px solid #5f021f", paddingTop: "1rem" }}>
           <span style={{ fontWeight: "bold", color: "#5f021f", marginRight: 8 }}>Correct Answer:</span>
-          <span style={{ fontSize: "1.1rem" }}>{currentLevel.reagents}</span>
+          <span style={{ fontSize: "1.1rem" }}>→ {currentLevel.reagents}</span>
+          {currentLevel.reversible && currentLevel.backwardReagent && (
+            <span style={{ fontSize: "1.1rem", marginLeft: 16 }}>← {currentLevel.backwardReagent}</span>
+          )}
         </div>
       )}
 
