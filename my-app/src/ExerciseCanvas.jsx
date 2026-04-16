@@ -69,6 +69,50 @@ function formatReagentDisplay(str) {
   return parts.length > 1 ? parts : s;
 }
 
+// Auto-detect ring bonds and compute ring centers for proper rendering
+function computeRingCenters(atoms, bonds) {
+  const adj = new Map();
+  atoms.forEach(a => adj.set(a.id, []));
+  bonds.forEach(b => {
+    if (adj.has(b.from) && adj.has(b.to)) {
+      adj.get(b.from).push({ to: b.to, bondId: b.id });
+      adj.get(b.to).push({ to: b.from, bondId: b.id });
+    }
+  });
+
+  const centers = new Map();
+  bonds.forEach(bond => {
+    if (bond.ringCenter) { centers.set(bond.id, bond.ringCenter); return; }
+
+    // BFS from bond.from to bond.to, skipping the direct bond, max ring size 7
+    const queue = [[bond.from, [bond.from]]];
+    const visited = new Set([bond.from]);
+    let ringPath = null;
+
+    while (queue.length > 0) {
+      const [current, path] = queue.shift();
+      if (path.length > 7) continue;
+      for (const nb of (adj.get(current) || [])) {
+        if (nb.bondId === bond.id) continue;
+        if (nb.to === bond.to && path.length >= 3) { ringPath = [...path, bond.to]; break; }
+        if (!visited.has(nb.to) && path.length < 7) {
+          visited.add(nb.to);
+          queue.push([nb.to, [...path, nb.to]]);
+        }
+      }
+      if (ringPath) break;
+    }
+
+    if (ringPath && ringPath.length <= 7) {
+      const ringAtoms = ringPath.map(id => atoms.find(a => a.id === id)).filter(Boolean);
+      const cx = ringAtoms.reduce((s, a) => s + a.x, 0) / ringAtoms.length;
+      const cy = ringAtoms.reduce((s, a) => s + a.y, 0) / ringAtoms.length;
+      centers.set(bond.id, { x: cx, y: cy });
+    }
+  });
+  return centers;
+}
+
 function pickQuestionType(level) {
   if (!level) return "product";
   // Multi-step levels keep the current product-only flow
@@ -178,6 +222,9 @@ export default function ExerciseCanvas({ exerciseType = "OneStepReaction", chapt
 
 const { user } = useAuth();
   const currentLevel = filteredLevels[levelIndex];
+
+  // Auto-detect ring centers for proper double/triple bond rendering
+  const ringCenters = useMemo(() => computeRingCenters(atoms, bonds), [atoms, bonds]);
 
   // Keep levelIndexRef in sync
   useEffect(() => { levelIndexRef.current = levelIndex; }, [levelIndex]);
@@ -929,10 +976,11 @@ const { user } = useAuth();
                 let offsetX = (bpDx / len) * 4;
                 let offsetY = (bpDy / len) * 4;
 
-                if (bond.ringCenter && (bond.order || 1) > 1) {
+                const rc = bond.ringCenter || ringCenters.get(bond.id);
+                if (rc && (bond.order || 1) > 1) {
                   const midX = (a1.x + a2.x) / 2;
                   const midY = (a1.y + a2.y) / 2;
-                  const dot = offsetX * (bond.ringCenter.x - midX) + (-offsetY) * (bond.ringCenter.y - midY);
+                  const dot = offsetX * (rc.x - midX) + (-offsetY) * (rc.y - midY);
                   if (dot < 0) { offsetX = -offsetX; offsetY = -offsetY; }
                 }
 
@@ -947,14 +995,14 @@ const { user } = useAuth();
                     {[...Array(bond.order)].map((_, i) => {
                       // Ring bonds: line 0 = full hex edge, line 1+ = shortened inside
                       // Non-ring bonds: center all lines, same length
-                      const isRing = !!bond.ringCenter;
+                      const isRing = !!rc;
                       // Ring: line 0 = hex edge (full), others shortened inside
                       // Ring triple: center at i=1 (full), i=0 and i=2 shortened
                       const shift = isRing
                         ? (bond.order === 3 ? i - 1 : i)
                         : i - (bond.order - 1) / 2;
                       const shrink = isRing
-                        ? (bond.order === 3 ? (i !== 1 ? 0.15 : 0) : (i > 0 ? 0.15 : 0))
+                        ? (bond.order === 3 ? (i !== 1 ? 0.08 : 0) : (i > 0 ? 0.08 : 0))
                         : 0;
                       const dx = a2.x - a1.x, dy = a2.y - a1.y;
                       return (

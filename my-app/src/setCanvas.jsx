@@ -128,7 +128,7 @@ export default function SetCanvas({ atoms = [], bonds = [], hideGrid = false, si
               ? (order === 3 ? i - 1 : i)
               : i - (order - 1) / 2;
             const shrink = isRing
-              ? (order === 3 ? (i !== 1 ? 0.15 : 0) : (i > 0 ? 0.15 : 0))
+              ? (order === 3 ? (i !== 1 ? 0.08 : 0) : (i > 0 ? 0.08 : 0))
               : 0;
             return (
             <line
