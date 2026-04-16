@@ -9,8 +9,8 @@ function renderChemical(str) {
   const s = str.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, c => SUB_TO_PLAIN[c] || c);
 
   const parts = [];
-  // Match: subscript digits after a letter/closing paren, OR a charge (+/-) at the end of a token
-  const re = /([A-Za-z\d)]+?)(\d+)|([+-])(?=[A-Z()\s]|$)/g;
+  // Match: subscript digits after a letter/closing paren, OR a charge (+/-) at the end of a token, OR prime marks ('/' after a letter)
+  const re = /([A-Za-z\d)'']+?)(\d+)|([+-])(?=[A-Z()\s]|$)|(['']+)/g;
   let last = 0;
   let m;
   while ((m = re.exec(s)) !== null) {
@@ -21,10 +21,15 @@ function renderChemical(str) {
       parts.push(
         <sub key={m.index} style={{ fontSize: "0.72em" }}>{m[2]}</sub>
       );
-    } else {
+    } else if (m[3]) {
       // superscript charge: + or -
       parts.push(
         <sup key={m.index} style={{ fontSize: "0.72em" }}>{m[3]}</sup>
+      );
+    } else if (m[4]) {
+      // superscript prime marks: ' or '
+      parts.push(
+        <sup key={m.index} style={{ fontSize: "0.72em" }}>{m[4]}</sup>
       );
     }
     last = m.index + m[0].length;

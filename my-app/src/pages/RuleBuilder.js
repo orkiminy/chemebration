@@ -514,16 +514,18 @@ function formatReagentDisplay(str) {
   if (!str) return null;
   const s = toPlainDigits(str);
   const parts = [];
-  // Match subscript digits after a letter, OR a charge (+/-) that follows a letter/digit/closing paren
-  const re = /([A-Za-z])(\d+)|([+-])(?=[A-Z()\s,/]|$)/g;
+  // Match subscript digits after a letter, OR a charge (+/-) that follows a letter/digit/closing paren, OR prime marks
+  const re = /([A-Za-z''])\s*(\d+)|([+-])(?=[A-Z()\s,/]|$)|(['']+)/g;
   let last = 0, m;
   while ((m = re.exec(s)) !== null) {
     if (m.index > last) parts.push(s.slice(last, m.index));
     if (m[2]) {
       parts.push(m[1]);
       parts.push(<sub key={m.index} style={{ fontSize: "0.72em" }}>{m[2]}</sub>);
-    } else {
+    } else if (m[3]) {
       parts.push(<sup key={m.index} style={{ fontSize: "0.72em" }}>{m[3]}</sup>);
+    } else if (m[4]) {
+      parts.push(<sup key={m.index} style={{ fontSize: "0.72em" }}>{m[4]}</sup>);
     }
     last = m.index + m[0].length;
   }

@@ -117,18 +117,32 @@ export default function SetCanvas({ atoms = [], bonds = [], hideGrid = false, si
             if (dot < 0) { offsetX = -offsetX; offsetY = -offsetY; }
           }
 
-          return [...Array(bond.order || 1)].map((_, i) => (
+          const order = bond.order || 1;
+          const dx = a2.x - a1.x, dy = a2.y - a1.y;
+          const isRing = !!bond.ringCenter;
+          return [...Array(order)].map((_, i) => {
+            // Ring bonds: hex edge full length, inner lines shortened
+            // Ring triple: center line full, both sides shortened
+            // Non-ring bonds: center all lines, same length
+            const shift = isRing
+              ? (order === 3 ? i - 1 : i)
+              : i - (order - 1) / 2;
+            const shrink = isRing
+              ? (order === 3 ? (i !== 1 ? 0.15 : 0) : (i > 0 ? 0.15 : 0))
+              : 0;
+            return (
             <line
               key={bond.id + "-" + i}
-              x1={a1.x + offsetX * i}
-              y1={a1.y - offsetY * i}
-              x2={a2.x + offsetX * i}
-              y2={a2.y - offsetY * i}
+              x1={a1.x + offsetX * shift + dx * shrink}
+              y1={a1.y - offsetY * shift + dy * shrink}
+              x2={a2.x + offsetX * shift - dx * shrink}
+              y2={a2.y - offsetY * shift - dy * shrink}
               stroke="#000"
               strokeWidth="3"
               strokeDasharray={bond.style === "striped" ? "6,4" : "0"}
             />
-          ));
+            );
+          });
         })}
 
         {/* ATOMS */}

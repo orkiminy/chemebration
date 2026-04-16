@@ -45,6 +45,30 @@ function checkReagentMatch(userInputs, expected) {
   return userParts.every((u, i) => normalizeReagentText(u) === normalizeReagentText(expectedParts[i]));
 }
 
+function formatReagentDisplay(str) {
+  if (!str) return null;
+  // Normalise unicode subscript digits to plain ASCII
+  const SUB_TO_PLAIN = {'₀':'0','₁':'1','₂':'2','₃':'3','₄':'4','₅':'5','₆':'6','₇':'7','₈':'8','₉':'9'};
+  const s = str.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, c => SUB_TO_PLAIN[c] || c);
+  const parts = [];
+  const re = /([A-Za-z''])\s*(\d+)|([+-])(?=[A-Z()\s,/]|$)|(['']+)/g;
+  let last = 0, m;
+  while ((m = re.exec(s)) !== null) {
+    if (m.index > last) parts.push(s.slice(last, m.index));
+    if (m[2]) {
+      parts.push(m[1]);
+      parts.push(<sub key={m.index} style={{ fontSize: "0.72em" }}>{m[2]}</sub>);
+    } else if (m[3]) {
+      parts.push(<sup key={m.index} style={{ fontSize: "0.72em" }}>{m[3]}</sup>);
+    } else if (m[4]) {
+      parts.push(<sup key={m.index} style={{ fontSize: "0.72em" }}>{m[4]}</sup>);
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < s.length) parts.push(s.slice(last));
+  return parts.length > 1 ? parts : s;
+}
+
 function pickQuestionType(level) {
   if (!level) return "product";
   // Multi-step levels keep the current product-only flow
@@ -739,19 +763,26 @@ const { user } = useAuth();
                     {reagentInputs.length > 1 && (
                       <span style={{ fontWeight: 600, color: "#5f021f", fontSize: "0.85rem", minWidth: 18 }}>{idx + 1}.</span>
                     )}
-                    <input
-                      type="text"
-                      value={val}
-                      onChange={(e) => {
-                        const next = [...reagentInputs];
-                        next[idx] = e.target.value;
-                        setReagentInputs(next);
-                      }}
-                      onKeyDown={(e) => { if (e.key === "Enter") checkAnswer(); }}
-                      placeholder={idx === 0 ? "e.g. HBr" : "e.g. H2O"}
-                      style={{ padding: "8px 10px", fontSize: "16px", width: "180px", border: "1px solid #ccc", borderRadius: 4 }}
-                      autoFocus={idx === 0}
-                    />
+                    <div style={{ position: "relative", width: "180px" }}>
+                      <input
+                        type="text"
+                        value={val}
+                        onChange={(e) => {
+                          const next = [...reagentInputs];
+                          next[idx] = e.target.value;
+                          setReagentInputs(next);
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") checkAnswer(); }}
+                        placeholder=""
+                        style={{ width: "100%", padding: "8px 10px", fontSize: "16px", border: "1px solid #ccc", borderRadius: 4, color: "transparent", caretColor: "#333", background: "white", boxSizing: "border-box" }}
+                        autoFocus={idx === 0}
+                      />
+                      <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", pointerEvents: "none", overflow: "hidden" }}>
+                        <span style={{ whiteSpace: "nowrap", color: val ? "#000" : "#999" }}>
+                          {val ? formatReagentDisplay(val) : (idx === 0 ? "e.g. HBr" : "e.g. H2O")}
+                        </span>
+                      </div>
+                    </div>
                     {reagentInputs.length > 1 && (
                       <span
                         onClick={() => setReagentInputs(reagentInputs.filter((_, i) => i !== idx))}
@@ -913,17 +944,31 @@ const { user } = useAuth();
                       stroke="transparent" strokeWidth="16"
                       {...bondHandlers}
                     />
-                    {[...Array(bond.order)].map((_, i) => (
+                    {[...Array(bond.order)].map((_, i) => {
+                      // Ring bonds: line 0 = full hex edge, line 1+ = shortened inside
+                      // Non-ring bonds: center all lines, same length
+                      const isRing = !!bond.ringCenter;
+                      // Ring: line 0 = hex edge (full), others shortened inside
+                      // Ring triple: center at i=1 (full), i=0 and i=2 shortened
+                      const shift = isRing
+                        ? (bond.order === 3 ? i - 1 : i)
+                        : i - (bond.order - 1) / 2;
+                      const shrink = isRing
+                        ? (bond.order === 3 ? (i !== 1 ? 0.15 : 0) : (i > 0 ? 0.15 : 0))
+                        : 0;
+                      const dx = a2.x - a1.x, dy = a2.y - a1.y;
+                      return (
                       <line
                         key={i}
-                        x1={a1.x + offsetX * i} y1={a1.y - offsetY * i}
-                        x2={a2.x + offsetX * i} y2={a2.y - offsetY * i}
+                        x1={a1.x + offsetX * shift + dx * shrink} y1={a1.y - offsetY * shift + dy * shrink}
+                        x2={a2.x + offsetX * shift - dx * shrink} y2={a2.y - offsetY * shift - dy * shrink}
                         stroke={bond.id === selectedBond ? "red" : "#000"}
                         strokeWidth="3"
                         strokeDasharray={bond.style === "striped" ? "6,4" : "0"}
                         pointerEvents="none"
                       />
-                    ))}
+                      );
+                    })}
                   </g>
                 );
               })}
