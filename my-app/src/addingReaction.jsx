@@ -61,7 +61,10 @@ export default function ReactionArrow({ text, backwardText }) {
         </div>
 
         {/* Forward Arrow */}
-        <div style={{ fontSize: "28px", fontWeight: "bold", color: "#333" }}>→</div>
+        <svg width="160" height="24" viewBox="0 0 160 24">
+          <line x1="4" y1="12" x2="138" y2="12" stroke="#333" strokeWidth="3.5" />
+          <polygon points="138,5 158,12 138,19" fill="#333" />
+        </svg>
 
         {/* Forward: Bottom Reagent */}
         <div style={{ fontWeight: "bold", fontSize: "14px", marginTop: "-5px" }}>
@@ -74,7 +77,10 @@ export default function ReactionArrow({ text, backwardText }) {
             <div style={{ fontWeight: "bold", fontSize: "18px", marginTop: "6px", marginBottom: "-5px" }}>
               {renderChemical(backTop)}
             </div>
-            <div style={{ fontSize: "28px", fontWeight: "bold", color: "#333" }}>←</div>
+            <svg width="160" height="24" viewBox="0 0 160 24">
+              <line x1="22" y1="12" x2="156" y2="12" stroke="#333" strokeWidth="3.5" />
+              <polygon points="22,5 2,12 22,19" fill="#333" />
+            </svg>
             <div style={{ fontWeight: "bold", fontSize: "14px", marginTop: "-5px" }}>
               {renderChemical(backBottom)}
             </div>
