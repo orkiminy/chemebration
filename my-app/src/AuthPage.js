@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { auth, db } from './firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { useAuth } from './contexts/AuthContext';
 
@@ -9,9 +9,11 @@ export default function AuthPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [resetMessage, setResetMessage] = useState('');
 
   // Redirect if already logged in
   if (!loading && user) {
@@ -101,6 +103,57 @@ export default function AuthPage() {
         </p>
       </div>
 
+      {isForgotPassword ? (
+        <div style={formStyle}>
+          <h2 style={{ color: "#1a3a4a", textAlign: "center", margin: 0 }}>
+            Reset Password
+          </h2>
+          <p style={{ textAlign: "center", color: "#6b7280", fontSize: "14px", margin: 0 }}>
+            Enter your email and we'll send you a reset link
+          </p>
+
+          <input
+            type="email" placeholder="Email Address" required
+            value={email}
+            style={{ padding: "10px", borderRadius: "6px", border: "1px solid #e2e5e9", fontSize: "14px" }}
+            onChange={(e) => { setEmail(e.target.value); setResetMessage(''); }}
+          />
+
+          {resetMessage && (
+            <p style={{
+              textAlign: "center",
+              fontSize: "13px",
+              margin: 0,
+              color: resetMessage.startsWith("Error") ? "#c62828" : "#2e7d32",
+            }}>
+              {resetMessage}
+            </p>
+          )}
+
+          <button
+            type="button"
+            style={buttonStyle}
+            onClick={async () => {
+              if (!email.trim()) { setResetMessage("Please enter your email address."); return; }
+              try {
+                await sendPasswordResetEmail(auth, email.trim());
+                setResetMessage("Reset link sent! Check your email inbox.");
+              } catch (error) {
+                setResetMessage("Error: " + error.message);
+              }
+            }}
+          >
+            Send Reset Email
+          </button>
+
+          <p
+            style={{ textAlign: "center", color: "#2d7d9a", fontSize: "14px", cursor: "pointer" }}
+            onClick={() => { setIsForgotPassword(false); setResetMessage(''); }}
+          >
+            Back to Log In
+          </p>
+        </div>
+      ) : (
       <form style={formStyle} onSubmit={handleSubmit}>
         <h2 style={{ color: "#1a3a4a", textAlign: "center", margin: 0 }}>
           {isLogin ? "Welcome Back" : "Join the Celebration"}
@@ -127,6 +180,15 @@ export default function AuthPage() {
           {isLogin ? "Log In" : "Create Account"}
         </button>
 
+        {isLogin && (
+          <p
+            style={{ textAlign: "center", color: "#6b7280", fontSize: "13px", cursor: "pointer", margin: 0 }}
+            onClick={() => setIsForgotPassword(true)}
+          >
+            Forgot your password?
+          </p>
+        )}
+
         <p
           style={{ textAlign: "center", color: "#2d7d9a", fontSize: "14px", cursor: "pointer" }}
           onClick={() => setIsLogin(!isLogin)}
@@ -134,6 +196,7 @@ export default function AuthPage() {
           {isLogin ? "New here? Create an account" : "Already have an account? Log in"}
         </p>
       </form>
+      )}
 
       {/* Feature cards */}
       <div className="features-section" style={{ marginTop: "3rem" }}>
