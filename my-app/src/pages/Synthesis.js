@@ -399,7 +399,7 @@ export default function Synthesis() {
           <>
             <h2 style={{ color: "#1a3a4a", marginBottom: "0.5rem" }}>Draw your target molecule</h2>
             <p style={{ color: "#666", marginTop: 0 }}>
-              Draw the product you want to synthesize, then click "Find Disconnections".
+              Draw the product you want to synthesize, then click "Synthesise".
             </p>
             <div style={{ display: "flex", justifyContent: "center" }}>
               <div>
@@ -479,7 +479,7 @@ export default function Synthesis() {
                   )}
                   <div className="toolbar-group">
                     <button className="toolbar-btn toolbar-btn-check" disabled={atoms.length === 0} onClick={handleStartAnalysis}>
-                      Find Disconnections
+                      Synthesise
                     </button>
                   </div>
                 </div>

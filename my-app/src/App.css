@@ -419,14 +419,14 @@ Navigation
 .nav-card {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1.4rem 1.8rem;
+  gap: 1.2rem;
+  padding: 1.8rem 2.2rem;
   border: 1.5px solid #e2e5e9;
   border-radius: 10px;
   background: #fff;
   text-decoration: none;
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
-  min-width: 200px;
+  min-width: 230px;
 }
 
 .nav-card:hover {
@@ -446,13 +446,13 @@ Navigation
 }
 
 .nav-card-title {
-  font-size: 1.4rem;
+  font-size: 1.7rem;
   font-weight: 600;
   color: #1a3a4a;
 }
 
 .nav-card-desc {
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   color: #6b7280;
 }
 
@@ -609,7 +609,7 @@ footer .row {
 }
 
 .footer .col:last-child span {
-  font-size: 2.5rem;
+  font-size: 2.2rem;
   margin-right: 0.5rem;
   color: #1a3a4a;
 }

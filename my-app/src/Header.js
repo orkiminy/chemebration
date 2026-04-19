@@ -152,7 +152,7 @@ function Header() {
         <Link to="/oneStepReaction" className="nav-card">
           <svg className="nav-card-hex" width="40" height="24" viewBox="0 0 120 104"><polygon points="35,0 85,0 120,52 85,104 35,104 0,52" fill="none" stroke="#2d7d9a" strokeWidth="5"/></svg>
           <div className="nav-card-text">
-            <span className="nav-card-title">One-step Reaction</span>
+            <span className="nav-card-title">One-Step Reaction</span>
             <span className="nav-card-desc">Predict products, reactants & reagents</span>
           </div>
         </Link>

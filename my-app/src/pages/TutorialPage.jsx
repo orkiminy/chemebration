@@ -241,7 +241,7 @@ function SubmitIllustration() {
 const styles = {
   backdrop: {
     position: 'fixed', inset: 0,
-    background: 'rgba(95, 2, 31, 0.6)',
+    background: 'rgba(26, 58, 74, 0.6)',
     backdropFilter: 'blur(4px)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     zIndex: 9999,
