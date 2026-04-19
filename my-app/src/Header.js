@@ -5,6 +5,8 @@ import { useAuth } from './contexts/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
+const ADMIN_EMAILS = ['oriny1@gmail.com'];
+
 function useCountUp(target, duration = 1200) {
   const [value, setValue] = useState(0);
   const started = useRef(false);
@@ -175,6 +177,7 @@ function Header() {
             <span className="nav-card-desc">Browse all reactions by category</span>
           </div>
         </Link>
+        {ADMIN_EMAILS.includes(user?.email) && (
         <Link to="/rule-builder" className="nav-card">
           <svg className="nav-card-hex" width="40" height="24" viewBox="0 0 120 104"><polygon points="35,0 85,0 120,52 85,104 35,104 0,52" fill="none" stroke="#2d7d9a" strokeWidth="5"/></svg>
           <div className="nav-card-text">
@@ -182,6 +185,7 @@ function Header() {
             <span className="nav-card-desc">Create and manage reaction rules</span>
           </div>
         </Link>
+        )}
       </div>
 
     </header>
