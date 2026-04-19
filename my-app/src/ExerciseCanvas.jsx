@@ -573,33 +573,43 @@ const { user } = useAuth();
       setShowAnswer(false);
       return;
     }
-    // Reagent question: the answer panel below renders the text directly
+    // Reagent question: fill the text inputs with the correct answer
     if (questionType === "reagent") {
-      setAnswerProducts([]);
-      setAnswerEnantiomerIndex(0);
+      if (showAnswer) {
+        // Hide answer — restore empty inputs
+        setReagentInputs(prev => prev.map(() => ""));
+        setShowAnswer(false);
+        return;
+      }
+      const steps = splitReagentSteps(currentLevel.reagents);
+      setReagentInputs(steps);
       setShowAnswer(true);
       return;
     }
-    // Reactant question: the answer is the stored reactant structure
+    // Reactant/Product question: draw the answer on the canvas
+    if (showAnswer) {
+      // Hide answer — clear the canvas
+      setAtoms([]);
+      setBonds([]);
+      setShowAnswer(false);
+      return;
+    }
+    let answerSolution;
     if (questionType === "reactant") {
-      setAnswerProducts(currentLevel.question ? [currentLevel.question] : []);
-      setAnswerEnantiomerIndex(0);
-      setShowAnswer(true);
-      return;
-    }
-    // Product question (default)
-    let products;
-    if (currentLevel.multiStep && currentLevel.steps) {
-      // For multi-step: show the current step's stored solution
-      products = currentLevel.steps[currentStep].solutions || [];
+      answerSolution = currentLevel.question;
+    } else if (currentLevel.multiStep && currentLevel.steps) {
+      answerSolution = currentLevel.steps[currentStep].solutions?.[0];
     } else if (currentLevel.solutions) {
-      // Rule-based exercises (and hardcoded ones with stored solutions)
-      products = currentLevel.solutions;
+      answerSolution = currentLevel.solutions[0];
     } else {
-      // Legacy hardcoded exercises using descriptor-based transformation
-      products = applyReaction(currentLevel.id, currentLevel.question.atoms, currentLevel.question.bonds);
+      const products = applyReaction(currentLevel.id, currentLevel.question.atoms, currentLevel.question.bonds);
+      answerSolution = products?.[0];
     }
-    setAnswerProducts(products);
+    if (answerSolution) {
+      setAtoms(answerSolution.atoms.map(a => ({ ...a })));
+      setBonds(answerSolution.bonds.map(b => ({ ...b })));
+    }
+    setAnswerProducts(currentLevel.solutions || []);
     setAnswerEnantiomerIndex(0);
     setShowAnswer(true);
   };
@@ -1137,40 +1147,22 @@ const { user } = useAuth();
         )}
       </div>
 
-      {/* Answer panel — reagent text variant */}
-      {showAnswer && questionType === "reagent" && (
-        <div style={{ marginTop: "1.5rem", borderTop: "2px solid #1a3a4a", paddingTop: "1rem" }}>
-          <span style={{ fontWeight: "bold", color: "#1a3a4a", marginRight: 8 }}>Correct Answer:</span>
-          <span style={{ fontSize: "1.1rem" }}>→ {currentLevel.reagents}</span>
-          {currentLevel.reversible && currentLevel.backwardReagent && (
-            <span style={{ fontSize: "1.1rem", marginLeft: 16 }}>← {currentLevel.backwardReagent}</span>
-          )}
-        </div>
-      )}
-
-      {/* Answer panel — shown when Show Answer is clicked */}
-      {showAnswer && answerProducts.length > 0 && (
-        <div style={{ marginTop: "1.5rem", borderTop: "2px solid #1a3a4a", paddingTop: "1rem" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.5rem" }}>
-            <span style={{ fontWeight: "bold", color: "#1a3a4a" }}>Correct Answer:</span>
-            {answerProducts.length > 1 && (
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                {answerProducts.map((_, i) => (
-                  <button
-                    key={i}
-                    className={`toolbar-btn${answerEnantiomerIndex === i ? " toolbar-btn-active" : ""}`}
-                    onClick={() => setAnswerEnantiomerIndex(i)}
-                  >
-                    Enantiomer {String.fromCharCode(65 + i)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <SetCanvas
-            atoms={answerProducts[answerEnantiomerIndex].atoms}
-            bonds={answerProducts[answerEnantiomerIndex].bonds}
-          />
+      {/* Enantiomer switcher — when answer is shown and multiple solutions exist */}
+      {showAnswer && questionType !== "reagent" && answerProducts.length > 1 && (
+        <div style={{ marginTop: "1rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
+          {answerProducts.map((sol, i) => (
+            <button
+              key={i}
+              className={`toolbar-btn${answerEnantiomerIndex === i ? " toolbar-btn-active" : ""}`}
+              onClick={() => {
+                setAnswerEnantiomerIndex(i);
+                setAtoms(sol.atoms.map(a => ({ ...a })));
+                setBonds(sol.bonds.map(b => ({ ...b })));
+              }}
+            >
+              Enantiomer {String.fromCharCode(65 + i)}
+            </button>
+          ))}
         </div>
       )}
 
