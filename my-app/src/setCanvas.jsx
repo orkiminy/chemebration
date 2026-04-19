@@ -1,6 +1,49 @@
 import { useMemo } from "react";
 import { atomFill, atomTextColor, atomRadius } from "./engine/atomColors";
 
+// Auto-detect ring bonds and compute ring centers for proper rendering
+function computeRingCenters(atoms, bonds) {
+  const adj = new Map();
+  atoms.forEach(a => adj.set(a.id, []));
+  bonds.forEach(b => {
+    if (adj.has(b.from) && adj.has(b.to)) {
+      adj.get(b.from).push({ to: b.to, bondId: b.id });
+      adj.get(b.to).push({ to: b.from, bondId: b.id });
+    }
+  });
+
+  const centers = new Map();
+  bonds.forEach(bond => {
+    if (bond.ringCenter) { centers.set(bond.id, bond.ringCenter); return; }
+
+    const queue = [[bond.from, [bond.from]]];
+    const visited = new Set([bond.from]);
+    let ringPath = null;
+
+    while (queue.length > 0) {
+      const [current, path] = queue.shift();
+      if (path.length > 7) continue;
+      for (const nb of (adj.get(current) || [])) {
+        if (nb.bondId === bond.id) continue;
+        if (nb.to === bond.to && path.length >= 3) { ringPath = [...path, bond.to]; break; }
+        if (!visited.has(nb.to) && path.length < 7) {
+          visited.add(nb.to);
+          queue.push([nb.to, [...path, nb.to]]);
+        }
+      }
+      if (ringPath) break;
+    }
+
+    if (ringPath && ringPath.length <= 7) {
+      const ringAtoms = ringPath.map(id => atoms.find(a => a.id === id)).filter(Boolean);
+      const cx = ringAtoms.reduce((s, a) => s + a.x, 0) / ringAtoms.length;
+      const cy = ringAtoms.reduce((s, a) => s + a.y, 0) / ringAtoms.length;
+      centers.set(bond.id, { x: cx, y: cy });
+    }
+  });
+  return centers;
+}
+
 export default function SetCanvas({ atoms = [], bonds = [], hideGrid = false, size = null }) {
   const WIDTH = 480;
   const HEIGHT = 480;
@@ -62,6 +105,9 @@ export default function SetCanvas({ atoms = [], bonds = [], hideGrid = false, si
     return atoms.map(a => ({ ...a, x: a.x + dx, y: a.y + dy }));
   }, [atoms]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-detect ring centers for proper double/triple bond rendering
+  const ringCenters = useMemo(() => computeRingCenters(centeredAtoms, bonds), [centeredAtoms, bonds]);
+
   // Compute tight viewBox when in compact mode (hideGrid + size)
   const viewBox = useMemo(() => {
     if (!hideGrid || !size || centeredAtoms.length === 0) {
@@ -110,16 +156,17 @@ export default function SetCanvas({ atoms = [], bonds = [], hideGrid = false, si
           let offsetY = (bpDy / len) * 4;
 
           // For ring bonds with order > 1, flip the offset so the inner line faces the ring center
-          if (bond.ringCenter && (bond.order || 1) > 1) {
+          const rc = bond.ringCenter || ringCenters.get(bond.id);
+          if (rc && (bond.order || 1) > 1) {
             const midX = (a1.x + a2.x) / 2;
             const midY = (a1.y + a2.y) / 2;
-            const dot = offsetX * (bond.ringCenter.x - midX) + (-offsetY) * (bond.ringCenter.y - midY);
+            const dot = offsetX * (rc.x - midX) + (-offsetY) * (rc.y - midY);
             if (dot < 0) { offsetX = -offsetX; offsetY = -offsetY; }
           }
 
           const order = bond.order || 1;
           const dx = a2.x - a1.x, dy = a2.y - a1.y;
-          const isRing = !!bond.ringCenter;
+          const isRing = !!rc;
           return [...Array(order)].map((_, i) => {
             // Ring bonds: hex edge full length, inner lines shortened
             // Ring triple: center line full, both sides shortened
